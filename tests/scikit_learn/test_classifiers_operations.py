@@ -10,11 +10,15 @@ import pytest
 from juicer.runner import configuration
 from juicer.scikit_learn.classification_operation import \
         ClassificationModelOperation, \
-        DecisionTreeClassifierOperation, GBTClassifierOperation, \
-        KNNClassifierOperation, LogisticRegressionOperation, \
-        MLPClassifierOperation, NaiveBayesClassifierOperation, \
-        PerceptronClassifierOperation, RandomForestClassifierOperation, \
-        SvmClassifierOperation
+        DecisionTreeClassifierOperation, DecisionTreeModelOperation, \
+        GBTClassifierOperation, GBTModelOperation, \
+        KNNClassifierOperation, KNNModelOperation, \
+        LogisticRegressionOperation, LogisticRegressionModelOperation, \
+        MLPClassifierOperation, MLPClassifierModelOperation, \
+        NaiveBayesClassifierOperation, NaiveBayesModelOperation, \
+        PerceptronClassifierOperation, PerceptronModelOperation, \
+        RandomForestClassifierOperation, RandomForestModelOperation, \
+        SvmClassifierOperation, SvmModelOperation
 
 from tests import compare_ast, format_code_comparison
 
@@ -288,7 +292,7 @@ def test_naive_bayes_minimum_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        classifier_1 = MultinomialNB(alpha=1.0, prior=None)""")
+        classifier_1 = MultinomialNB(alpha=1.0, class_prior=None)""")
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
@@ -309,7 +313,7 @@ def test_naive_bayes_with_params_success():
 
     code = instance_lr.generate_code()
     expected_code = dedent("""
-        classifier_1 = BernoulliNB(alpha=2.0, prior=[1,2,3,4,5])""")
+        classifier_1 = BernoulliNB(alpha=2.0, class_prior=[1,2,3,4,5])""")
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
     assert result, msg + format_code_comparison(code, expected_code)
 
@@ -443,6 +447,26 @@ def test_random_forest_wrong_value_param_failure():
                                         named_outputs=n_out)
 
 
+def test_random_forest_operation_without_input_failure():
+    params = {
+        RandomForestClassifierOperation.SEED_PARAM: 10,
+        RandomForestClassifierOperation.MAX_DEPTH_PARAM: 11,
+        RandomForestClassifierOperation.MIN_SPLIT_PARAM: 12,
+        RandomForestClassifierOperation.MIN_LEAF_PARAM: 13,
+        RandomForestClassifierOperation.N_ESTIMATORS_PARAM: 15,
+        ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM: ['label'],
+        ClassificationModelOperation.FEATURES_ATTRIBUTE_PARAM: ['feature']
+
+    }
+    n_in = {}
+    n_out = {'output data': 'classifier_1'}
+
+    instance = RandomForestModelOperation(params, named_inputs=n_in,
+                                          named_outputs=n_out)
+
+    assert not instance.has_code
+
+
 '''
     SVM Classifier Operation
 '''
@@ -495,6 +519,77 @@ def test_svm_operation_params_success():
     assert result, msg + format_code_comparison(code, expected_code)
 
 
+def test_svm_model_params_success():
+    params = {
+        SvmClassifierOperation.PENALTY_PARAM: 10.0,
+        SvmClassifierOperation.KERNEL_PARAM:
+            SvmClassifierOperation.KERNEL_PARAM_POLY,
+        SvmClassifierOperation.DEGREE_PARAM: 2,
+        SvmClassifierOperation.TOLERANCE_PARAM: -0.1,
+        SvmClassifierOperation.MAX_ITER_PARAM: 13,
+        SvmClassifierOperation.SEED_PARAM: 12,
+        ClassificationModelOperation.FEATURES_ATTRIBUTE_PARAM: ['feature'],
+        ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM: ['label']
+    }
+    n_in = {'train input data': 'df1'}
+    n_out = {'output data': 'df2'}
+
+    instance = SvmModelOperation(params, named_inputs=n_in,
+                                 named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+        algorithm = SVC(tol=0.1, C=10.0, max_iter=13, 
+                           degree=2, kernel='poly', random_state=12)
+        
+        X = df1['feature'].values.tolist()
+        y = df1['label'].values.tolist() 
+        model_task_1 = algorithm.fit(X, y)
+        
+        df2 = df1.copy()
+        df2['prediction'] = model_task_1.predict(X).tolist() 
+    """)
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_svm_model_params_two_success():
+    params = {
+        SvmClassifierOperation.PENALTY_PARAM: 10.0,
+        SvmClassifierOperation.KERNEL_PARAM:
+            SvmClassifierOperation.KERNEL_PARAM_POLY,
+        SvmClassifierOperation.DEGREE_PARAM: 2,
+        SvmClassifierOperation.TOLERANCE_PARAM: -0.1,
+        SvmClassifierOperation.MAX_ITER_PARAM: 13,
+        SvmClassifierOperation.SEED_PARAM: 12,
+        ClassificationModelOperation.FEATURES_ATTRIBUTE_PARAM: ['feature'],
+        ClassificationModelOperation.LABEL_ATTRIBUTE_PARAM: ['label']
+    }
+    n_in = {'train input data': 'df1'}
+    n_out = {'output data': 'df2', 'model': 'model_output'}
+
+    instance = SvmModelOperation(params, named_inputs=n_in,
+                                 named_outputs=n_out)
+
+    code = instance.generate_code()
+    expected_code = dedent("""
+        algorithm = SVC(tol=0.1, C=10.0, max_iter=13, 
+                           degree=2, kernel='poly', random_state=12)
+
+        X = df1['feature'].values.tolist()
+        y = df1['label'].values.tolist() 
+        model_output = algorithm.fit(X, y)
+
+        df2 = df1.copy()
+        df2['prediction'] = model_output.predict(X).tolist() 
+    """)
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + format_code_comparison(code, expected_code)
+
 def test_svm_wrong_value_param_failure():
     params = {
         SvmClassifierOperation.DEGREE_PARAM: -1
@@ -531,8 +626,7 @@ def test_classification_operation_success():
         y = df_2['label'].values.tolist()
         model_task_1 = algo.fit(X, y)
         
-        output_1 = df_2
-         
+        output_1 = df_2.copy()
         output_1['prediction'] = model_task_1.predict(X).tolist()
         """.format())
 
@@ -563,8 +657,7 @@ def test_classification_with_model_operation_success():
         y = df_2['label'].values.tolist()
         output_2 = algo.fit(X, y)
          
-        output_1 = df_2
-         
+        output_1 = df_2.copy()
         output_1['prediction'] = output_2.predict(X).tolist()
         """.format())
 
@@ -594,7 +687,7 @@ def test_classification_model_operation_success():
         y = df_2['label'].values.tolist()
         output_2 = algo.fit(X, y)
 
-        task_1 = None
+        out_task_1 = None
         """.format())
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -621,9 +714,10 @@ def test_classification_model_operation_missing_input_failure():
     named_inputs = {'algorithm': 'df_1'}
     named_outputs = {'output data': 'output_1'}
 
-    with pytest.raises(ValueError):
-        ClassificationModelOperation(params, named_inputs=named_inputs,
-                                     named_outputs=named_outputs)
+    code = ClassificationModelOperation(params, named_inputs=named_inputs,
+                                        named_outputs=named_outputs)
+
+    assert not code.has_code
 
 
 def test_classification_model_operation_missing_output_success():

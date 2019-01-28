@@ -10,12 +10,13 @@ import pytest
 from juicer.runner import configuration
 from juicer.scikit_learn.regression_operation import RegressionModelOperation, \
     GradientBoostingRegressorOperation, \
-    HuberRegressorOperation, \
-    IsotonicRegressionOperation, \
-    LinearRegressionOperation, \
-    MLPRegressorOperation, \
-    RandomForestRegressorOperation, \
-    SGDRegressorOperation
+    GradientBoostingRegressorModelOperation, \
+    HuberRegressorOperation, HuberRegressorModelOperation, \
+    IsotonicRegressionOperation, IsotonicRegressionModelOperation, \
+    LinearRegressionOperation, LinearRegressionModelOperation, \
+    MLPRegressorOperation, MLPRegressorModelOperation,\
+    RandomForestRegressorOperation, RandomForestRegressorModelOperation, \
+    SGDRegressorOperation, SGDRegressorModelOperation
 
 from tests import compare_ast, format_code_comparison
 
@@ -331,6 +332,47 @@ def test_randomforestregressor_with_params_success():
     assert result, msg + format_code_comparison(code, expected_code)
 
 
+def test_randomforestregressor_model_with_params_success():
+    params = {
+
+        RandomForestRegressorOperation.MAX_FEATURES_PARAM: 'sqrt',
+        RandomForestRegressorOperation.MAX_DEPTH_PARAM: 10,
+        RandomForestRegressorOperation.MIN_LEAF_PARAM: 3,
+        RandomForestRegressorOperation.MIN_SPLIT_PARAM: 4,
+        RandomForestRegressorOperation.N_ESTIMATORS_PARAM: 9,
+        RandomForestRegressorOperation.SEED_PARAM: -9,
+        RegressionModelOperation.FEATURES_ATTRIBUTE_PARAM: ['fe'],
+        RegressionModelOperation.LABEL_ATTRIBUTE_PARAM: 'label'
+
+    }
+    n_out = {'model': 'model_output'}
+    n_in = {'train input data': 'df_in'}
+
+    instance_lr = RandomForestRegressorModelOperation(
+        params, named_inputs=n_in, named_outputs=n_out)
+
+    code = instance_lr.generate_code()
+    expected_code = dedent("""
+        algorithm = RandomForestRegressor(n_estimators=9,
+            max_features='sqrt',
+            max_depth=10,
+            min_samples_split=4,
+            min_samples_leaf=3,
+            random_state=-9)
+            
+        out_task_1 = df_in.copy()  
+        X_train = df_in['fe'].values.tolist()
+        if 'IsotonicRegression' in str(algorithm): 
+            X_train = np.ravel(X_train)
+        y = df_in['l'].values.tolist()   
+        model_output = algorithm.fit(X_train, y)  
+
+        out_task_1 = None
+        """)
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
 def test_randomforestregressor_wrong_value_param_failure():
     params = {
         RandomForestRegressorOperation.MAX_DEPTH_PARAM: -1
@@ -342,9 +384,57 @@ def test_randomforestregressor_wrong_value_param_failure():
                                        named_outputs=n_out)
 
 
+def test_randomforestregressormodel_without_input_failure():
+    params = {
+        RandomForestRegressorOperation.MAX_FEATURES_PARAM: 'sqrt',
+        RandomForestRegressorOperation.MAX_DEPTH_PARAM: 10,
+        RandomForestRegressorOperation.MIN_LEAF_PARAM: 3,
+        RandomForestRegressorOperation.MIN_SPLIT_PARAM: 4,
+        RandomForestRegressorOperation.N_ESTIMATORS_PARAM: 9,
+        RandomForestRegressorOperation.SEED_PARAM: -9,
+        RegressionModelOperation.FEATURES_ATTRIBUTE_PARAM: ['fe'],
+        RegressionModelOperation.LABEL_ATTRIBUTE_PARAM: 'label'
+    }
+    n_in = {}
+    n_out = {'output data': 'result'}
+    code = RandomForestRegressorModelOperation(params, named_inputs=n_in,
+                                               named_outputs=n_out)
+
+    assert not code.has_code
+
 '''
     Gradient Boosting Regressor Operation
 '''
+
+
+def test_sgd_regressor_minimum_model_params_success():
+    params = {
+        RegressionModelOperation.FEATURES_ATTRIBUTE_PARAM: ['feature'],
+        RegressionModelOperation.LABEL_ATTRIBUTE_PARAM: ['label']
+    }
+    n_out = {'output data': 'df_out'}
+    n_in = {'train input data': 'df_in'}
+
+    instance_lr = SGDRegressorModelOperation(params, named_inputs=n_in,
+                                             named_outputs=n_out)
+
+    code = instance_lr.generate_code()
+    expected_code = dedent("""
+        algorithm = SGDRegressor(alpha=0.0001, l1_ratio=0.15, max_iter=1000,
+                                   tol=0.001, random_state=None)
+          
+        df_out = df_in.copy() 
+        X_train = df_in['feature'].values.tolist() 
+        if 'IsotonicRegression' in str(algorithm): 
+             X_train = np.ravel(X_train)       
+        y = df_in['label'].values.tolist() 
+        model_task_1 = algorithm.fit(X_train, y)    
+
+        df_out = df_in.copy() 
+        df_out['prediction'] = model_task_1.predict(X_train).tolist()                          
+        """)
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+    assert result, msg + format_code_comparison(code, expected_code)
 
 
 def test_sgd_regressor_minimum_params_success():
@@ -401,7 +491,7 @@ def test_sgd_regressor_wrong_value_param_failure():
 
 def test_regressor_model_operation_missing_output_failure():
     params = {
-        RegressionModelOperation.FEATURES_PARAM: 'f',
+        RegressionModelOperation.FEATURES_ATTRIBUTE_PARAM: ['f'],
     }
     n_in = {'algorithm': 'r', 'train input data': 't'}
     n_out = {'output data': 'out'}
@@ -414,8 +504,8 @@ def test_regressor_model_operation_missing_output_failure():
 
 def test_regressor_operation_success():
     params = {
-            RegressionModelOperation.FEATURES_PARAM: 'f',
-            RegressionModelOperation.LABEL_PARAM: 'l'
+        RegressionModelOperation.FEATURES_ATTRIBUTE_PARAM: ['f'],
+        RegressionModelOperation.LABEL_ATTRIBUTE_PARAM: ['l']
     }
     n_in = {'algorithm': 'regressor', 'train input data': 'train_data'}
     n_out = {'output data': 'out_data'}
@@ -425,14 +515,15 @@ def test_regressor_operation_success():
 
     code = instance.generate_code()
     expected_code = dedent("""
-        algorithm = regressor
         out_data = train_data.copy()
         X_train = train_data['f'].values.tolist()
         if 'IsotonicRegression' in str(algorithm):
             X_train = np.ravel(X_train)
         y = train_data['l'].values.tolist()
-        model_1 = algorithm.fit(X_train, y)
-        out_data['prediction'] = algorithm.predict(X_train).tolist()
+        model_task_1 = regressor.fit(X_train, y)
+        
+        out_data = train_data.copy()
+        out_data['prediction'] = model_task_1.predict(X_train).tolist()
     """)
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -442,8 +533,8 @@ def test_regressor_operation_success():
 
 def test_regressor_operation_with_model_success():
     params = {
-            RegressionModelOperation.FEATURES_PARAM: 'f',
-            RegressionModelOperation.LABEL_PARAM: 'l'
+        RegressionModelOperation.FEATURES_ATTRIBUTE_PARAM: ['f'],
+        RegressionModelOperation.LABEL_ATTRIBUTE_PARAM: ['l']
     }
     n_in = {'algorithm': 'regressor', 'train input data': 'train_data'}
     n_out = {'model': 'model_data'}
@@ -453,14 +544,14 @@ def test_regressor_operation_with_model_success():
 
     code = instance.generate_code()
     expected_code = dedent("""
-        algorithm = regressor
         out_task_1 = train_data.copy()
         X_train = train_data['f'].values.tolist()
         if 'IsotonicRegression' in str(algorithm):
             X_train = np.ravel(X_train)
         y = train_data['l'].values.tolist()
-        model_data = algorithm.fit(X_train, y)
-        out_task_1['prediction'] = algorithm.predict(X_train).tolist()
+        model_data = regressor.fit(X_train, y)
+        
+        out_task_1 = None
     """)
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))

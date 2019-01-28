@@ -121,11 +121,11 @@ class ScikitLearnTranspiler(Transpiler):
             'decision-tree-classifier':
                 classifiers.DecisionTreeClassifierOperation,
             'decision-tree-classifier-model':
-                classifiers.DecisionTreeClassifierModelOperation,
+                classifiers.DecisionTreeModelOperation,
             'gbt-classifier': classifiers.GBTClassifierOperation,
-            'gbt-classifier-model': classifiers.GBTClassifierModelOperation,
+            'gbt-classifier-model': classifiers.GBTModelOperation,
             'knn-classifier': classifiers.KNNClassifierOperation,
-            'knn-classifier-model': classifiers.KNNClassifierModelOperation,
+            'knn-classifier-model': classifiers.KNNModelOperation,
             'logistic-regression': classifiers.LogisticRegressionOperation,
             'logistic-regression-model':
                 classifiers.LogisticRegressionModelOperation,
@@ -133,16 +133,16 @@ class ScikitLearnTranspiler(Transpiler):
             'mlp-classifier-model': classifiers.MLPClassifierModelOperation,
             'naive-bayes-classifier': classifiers.NaiveBayesClassifierOperation,
             'naive-bayes-classifier-model':
-                classifiers.NaiveBayesClassifierModelOperation,
+                classifiers.NaiveBayesModelOperation,
             'perceptron-classifier': classifiers.PerceptronClassifierOperation,
             'perceptron-classifier-model':
-                classifiers.PerceptronClassifierModelOperation,
+                classifiers.PerceptronModelOperation,
             'random-forest-classifier':
                 classifiers.RandomForestClassifierOperation,
             'random-forest-classifier-model':
-                classifiers.RandomForestClassifierModelOperation,
+                classifiers.PerceptronModelOperation,
             'svm-classification': classifiers.SvmClassifierOperation,
-            'svm-classification-model': classifiers.SvmClassifierModelOperation,
+            'svm-classification-model': classifiers.SvmModelOperation,
 
             # ------ Regression  -----#
             'regression-model': regression.RegressionModelOperation,

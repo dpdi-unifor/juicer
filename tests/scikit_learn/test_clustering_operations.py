@@ -17,8 +17,8 @@ from juicer.scikit_learn.clustering_operation import \
     AgglomerativeClusteringOperation,\
     ClusteringModelOperation, \
     DBSCANClusteringOperation,\
-    LdaClusteringOperation, KMeansClusteringOperation, \
-    GaussianMixtureClusteringOperation
+    KMeansClusteringOperation, KMeansClusteringModelOperation,\
+    GaussianMixtureClusteringOperation, GaussianMixtureClusteringModelOperation
 
 
 """
@@ -232,9 +232,157 @@ def test_gaussian_mixture_clustering_failure():
                                            named_outputs=named_outputs)
 
 
+def test_gaussian_mixture_clustering_model_only_data_success():
+    params = {
+        GaussianMixtureClusteringOperation.MAX_ITER_PARAM: 15,
+        GaussianMixtureClusteringOperation.TOLERANCE_PARAM: 0.11,
+        GaussianMixtureClusteringOperation.N_CLUSTERS_PARAM: 11,
+        ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM: ['features'],
+        ClusteringModelOperation.PREDICTION_ATTRIBUTE_PARAM: 'pred'
+
+    }
+    named_inputs = {'train input data': 'df1'}
+    named_outputs = {'output data': 'df2'}
+
+    instance = GaussianMixtureClusteringModelOperation(
+            params, named_inputs=named_inputs, named_outputs=named_outputs)
+
+    code = instance.generate_code()
+
+    expected_code = dedent("""
+        algorithm = GaussianMixture(n_components=11, 
+            max_iter=15, tol=0.11)
+
+
+        X = df1['features'].values.tolist()
+        model_task_1 = algorithm.fit(X)
+
+        y = algorithm.predict(X)
+        df2 = df1.copy()
+        df2['pred'] = y
+        """)
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
 """
     K-Means tests
 """
+
+
+def test_kmeans_clustering_model_two_input_success():
+    params = {
+        KMeansClusteringOperation.N_CLUSTERS_PARAM: 10,
+        KMeansClusteringOperation.MAX_ITER_PARAM: 20,
+        KMeansClusteringOperation.TYPE_PARAM:
+            KMeansClusteringOperation.TYPE_PARAM_MB,
+        KMeansClusteringOperation.INIT_PARAM:
+            KMeansClusteringOperation.INIT_PARAM_RANDOM,
+        KMeansClusteringOperation.TOLERANCE_PARAM: 0.001,
+        KMeansClusteringOperation.SEED_PARAM: 15,
+        ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM: ['features'],
+        ClusteringModelOperation.PREDICTION_ATTRIBUTE_PARAM: 'pred'
+
+    }
+    named_inputs = {'train input data': 'df1'}
+    named_outputs = {'output data': 'df2', 'model': 'model'}
+
+    instance = KMeansClusteringModelOperation(params, named_inputs=named_inputs,
+                                              named_outputs=named_outputs)
+
+    code = instance.generate_code()
+
+    expected_code = dedent("""
+        algorithm = MiniBatchKMeans(n_clusters={k}, init='{init}',
+                max_iter={max_iter}, tol={tol}, random_state={seed})
+               
+                
+        X = df1['features'].values.tolist()
+        model = algorithm.fit(X)
+        
+        y = algorithm.predict(X)
+        df2 = df1.copy()
+        df2['pred'] = y
+        """.format(
+                   k=params[KMeansClusteringOperation.N_CLUSTERS_PARAM],
+                   init=params[KMeansClusteringOperation.INIT_PARAM],
+                   max_iter=params[KMeansClusteringOperation.MAX_ITER_PARAM],
+                   seed=params[KMeansClusteringOperation.SEED_PARAM],
+                   tol=params[KMeansClusteringOperation.TOLERANCE_PARAM]))
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_kmeans_clustering_model_only_data_success():
+    params = {
+        KMeansClusteringOperation.N_CLUSTERS_PARAM: 10,
+        KMeansClusteringOperation.MAX_ITER_PARAM: 20,
+        KMeansClusteringOperation.TYPE_PARAM:
+            KMeansClusteringOperation.TYPE_PARAM_MB,
+        KMeansClusteringOperation.INIT_PARAM:
+            KMeansClusteringOperation.INIT_PARAM_RANDOM,
+        KMeansClusteringOperation.TOLERANCE_PARAM: 0.001,
+        KMeansClusteringOperation.SEED_PARAM: 15,
+        ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM: ['features'],
+        ClusteringModelOperation.PREDICTION_ATTRIBUTE_PARAM: 'pred'
+
+    }
+    named_inputs = {'train input data': 'df1'}
+    named_outputs = {'output data': 'df2'}
+
+    instance = KMeansClusteringModelOperation(params, named_inputs=named_inputs,
+                                              named_outputs=named_outputs)
+
+    code = instance.generate_code()
+
+    expected_code = dedent("""
+        algorithm = MiniBatchKMeans(n_clusters={k}, init='{init}',
+                max_iter={max_iter}, tol={tol}, random_state={seed})
+
+
+        X = df1['features'].values.tolist()
+        model_task_1 = algorithm.fit(X)
+
+        y = algorithm.predict(X)
+        df2 = df1.copy()
+        df2['pred'] = y
+        """.format(
+                   k=params[KMeansClusteringOperation.N_CLUSTERS_PARAM],
+                   init=params[KMeansClusteringOperation.INIT_PARAM],
+                   max_iter=params[KMeansClusteringOperation.MAX_ITER_PARAM],
+                   seed=params[KMeansClusteringOperation.SEED_PARAM],
+                   tol=params[KMeansClusteringOperation.TOLERANCE_PARAM]))
+
+    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
+
+    assert result, msg + format_code_comparison(code, expected_code)
+
+
+def test_kmeans_clustering_model_only_data_success():
+    params = {
+        KMeansClusteringOperation.N_CLUSTERS_PARAM: 10,
+        KMeansClusteringOperation.MAX_ITER_PARAM: 20,
+        KMeansClusteringOperation.TYPE_PARAM:
+            KMeansClusteringOperation.TYPE_PARAM_MB,
+        KMeansClusteringOperation.INIT_PARAM:
+            KMeansClusteringOperation.INIT_PARAM_RANDOM,
+        KMeansClusteringOperation.TOLERANCE_PARAM: 0.001,
+        KMeansClusteringOperation.SEED_PARAM: 15,
+        ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM: ['features'],
+        ClusteringModelOperation.PREDICTION_ATTRIBUTE_PARAM: 'pred'
+
+    }
+    named_inputs = {}
+    named_outputs = {'output data': 'df2'}
+
+    instance = KMeansClusteringModelOperation(params, named_inputs=named_inputs,
+                                              named_outputs=named_outputs)
+
+    assert not instance.has_code
 
 
 def test_kmeans_clustering_operation_random_type_minibatch_success():
@@ -336,74 +484,6 @@ def test_kmeans_clustering_operation_random_type_failure():
 
 
 """
-    LDA Clustering tests
-"""
-
-
-def test_lda_clustering_success():
-    params = {
-        LdaClusteringOperation.N_COMPONENTES_PARAM: 10,
-        LdaClusteringOperation.ALPHA_PARAM: 0.5,
-        LdaClusteringOperation.SEED_PARAM: 11,
-        LdaClusteringOperation.MAX_ITER_PARAM: 100,
-        LdaClusteringOperation.ETA_PARAM: 0.5,
-        LdaClusteringOperation.LEARNING_METHOD_PARAM:
-            LdaClusteringOperation.LEARNING_METHOD_ON,
-
-    }
-
-    named_outputs = {'algorithm': 'clustering_algo_1'}
-
-    instance = LdaClusteringOperation(params, named_inputs={},
-                                      named_outputs=named_outputs)
-
-    code = instance.generate_code()
-
-    expected_code = dedent("""
-        clustering_algo_1 = LatentDirichletAllocation(n_components=10, 
-         doc_topic_prior=0.5, topic_word_prior=0.5, 
-         learning_method='online', max_iter=100)
-        """.format())
-
-    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-
-    assert result, msg + format_code_comparison(code, expected_code)
-
-
-def test_lda_clustering_minimum_success():
-    params = {
-
-    }
-    named_outputs = {'algorithm': 'clustering_algo_1'}
-
-    instance = LdaClusteringOperation(params, named_inputs={},
-                                      named_outputs=named_outputs)
-
-    code = instance.generate_code()
-
-    expected_code = dedent("""
-        clustering_algo_1 = LatentDirichletAllocation(n_components=10, 
-        doc_topic_prior=None, topic_word_prior=None, 
-        learning_method='online', max_iter=10)
-        """)
-
-    result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
-
-    assert result, msg + format_code_comparison(code, expected_code)
-
-
-def test_lda_clustering_failure():
-    params = {
-        LdaClusteringOperation.N_COMPONENTES_PARAM: -10
-    }
-    named_outputs = {'algorithm': 'clustering_algo_1'}
-
-    with pytest.raises(ValueError):
-        LdaClusteringOperation(params, named_inputs={},
-                               named_outputs=named_outputs)
-
-
-"""
     Clustering Model tests
 """
 
@@ -411,7 +491,7 @@ def test_lda_clustering_failure():
 def test_clustering_operation_success():
     params = {
 
-        ClusteringModelOperation.FEATURES_PARAM: ['f'],
+        ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM: ['f'],
 
     }
     named_inputs = {'algorithm': 'algo',
@@ -425,10 +505,10 @@ def test_clustering_operation_success():
 
     expected_code = dedent("""
         X = df_2['f'].values.tolist()
-        model_output_1 = algo.fit(X)
+        model_task_1 = algo.fit(X)
          
         y = algo.predict(X)
-        output_1 = df_2
+        output_1 = df_2.copy()
         output_1['prediction'] = y
         """.format())
 
@@ -440,7 +520,7 @@ def test_clustering_operation_success():
 def test_clustering_with_model_operation_success():
     params = {
 
-        ClusteringModelOperation.FEATURES_PARAM: ['f'],
+        ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM: ['f'],
 
     }
     named_inputs = {'algorithm': 'algo',
@@ -458,7 +538,7 @@ def test_clustering_with_model_operation_success():
         output_2 = algo.fit(X)
 
         y = algo.predict(X)
-        output_1 = df_2
+        output_1 = df_2.copy()
         output_1['prediction'] = y
         """.format())
 
@@ -470,7 +550,7 @@ def test_clustering_with_model_operation_success():
 def test_clustering_model_operation_success():
     params = {
 
-        ClusteringModelOperation.FEATURES_PARAM: ['f'],
+        ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM: ['f'],
 
     }
     named_inputs = {'algorithm': 'algo',
@@ -486,7 +566,7 @@ def test_clustering_model_operation_success():
         X = df_2['f'].values.tolist()
         output_2 = algo.fit(X)
         
-        task_1 = None
+        out_task_1 = None
         """.format())
 
     result, msg = compare_ast(ast.parse(code), ast.parse(expected_code))
@@ -509,7 +589,7 @@ def test_clustering_model_operation_missing_features_failure():
 
 def test_clustering_model_operation_missing_input_failure():
     params = {
-        ClusteringModelOperation.FEATURES_PARAM: ['f']
+        ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM: ['f']
     }
     named_inputs = {'algorithm': 'df_1'}
     named_outputs = {'output data': 'output_1', 'model': 'output_2'}
@@ -522,7 +602,7 @@ def test_clustering_model_operation_missing_input_failure():
 
 def test_clustering_model_operation_missing_output_success():
     params = {
-        ClusteringModelOperation.FEATURES_PARAM: ['f']
+        ClusteringModelOperation.FEATURES_ATTRIBUTE_PARAM: ['f']
     }
     named_inputs = {'algorithm': 'df_1', 'train input data': 'df_2'}
     named_outputs = {'model': 'output_2'}

@@ -51,7 +51,7 @@ class TokenizerOperation(Operation):
             # Adjust alias in order to have the same number of aliases as
             # attributes by filling missing alias with the attribute name
             # sufixed by _indexed.
-            self.alias = [x[1] or '{}_tok'.format(x[0]) for x in
+            self.alias = [x[1] or '{}_tokenized'.format(x[0]) for x in
                           izip_longest(self.attributes,
                                        self.alias[:len(self.attributes)])]
 
@@ -458,3 +458,85 @@ class WordToVectorOperation(Operation):
                 _("Invalid type '{}' for task {}").format(self.type,
                                                           self.__class__))
         return code
+
+
+class LdaClusteringOperation(Operation):
+    N_COMPONENTES_PARAM = 'n_components'
+    ALPHA_PARAM = 'doc_topic_pior'
+    ETA_PARAM = 'topic_word_prior'
+    LEARNING_METHOD_PARAM = 'learning_method'
+    MAX_ITER_PARAM = 'max_iter'
+    SEED_PARAM = 'seed'
+
+    LEARNING_METHOD_ON = 'online'
+    LEARNING_METHOD_BA = 'batch'
+
+    FEATURES_PARAM = 'features'
+    PREDICTION_ATTR_PARAM = 'prediction'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        self.has_code = len(named_outputs) > 0
+        if self.has_code:
+            self.features = parameters.get(self.FEATURES_PARAM)[0]
+            self.prediction = parameters.get(self.PREDICTION_ATTR_PARAM,
+                                             'prediction')
+            self.output = self.named_outputs.get(
+                    'output data', 'out_{}'.format(self.order))
+            self.model = self.named_outputs.get(
+                    'model', 'model_{}'.format(self.order))
+
+            self.n_clusters = parameters.get(
+                    self.N_COMPONENTES_PARAM, 10) or self.N_COMPONENTES_PARAM
+            self.learning_method = parameters.get(
+                    self.LEARNING_METHOD_PARAM,
+                    self.LEARNING_METHOD_ON) or self.LEARNING_METHOD_ON
+            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10) or 10
+
+            self.doc_topic_pior = \
+                parameters.get(self.ALPHA_PARAM, 'None') or 'None'
+            self.topic_word_prior = parameters.get(self.ETA_PARAM,
+                                                   'None') or 'None'
+
+            self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
+
+            if self.learning_method not in [self.LEARNING_METHOD_ON,
+                                            self.LEARNING_METHOD_BA]:
+                raise ValueError(
+                    _('Invalid optimizer value {} for class {}').format(
+                        self.learning_method, self.__class__))
+
+            vals = [self.n_clusters, self.max_iter]
+            atts = [self.N_COMPONENTES_PARAM, self.MAX_ITER_PARAM]
+            for var, att in zip(vals, atts):
+                if var <= 0:
+                    raise ValueError(
+                            _("Parameter '{}' must be x>0 for task {}").format(
+                                    att, self.__class__))
+
+            self.has_import = \
+                "from sklearn.decomposition import LatentDirichletAllocation\n"
+
+    def generate_code(self):
+        """Generate code."""
+
+        code = """
+        X = {input}['{features}'].values.tolist()
+        
+        {model} = LatentDirichletAllocation(n_components={n_components}, 
+        doc_topic_prior={doc_topic_prior}, topic_word_prior={topic_word_prior}, 
+        learning_method='{learning_method}', max_iter={max_iter})
+        {model}.fit(X)
+        
+        {output} = {input}.copy()
+        {output}['{prediction}'] = {model}.transform(X).tolist()
+        """.format(features=self.features, prediction=self.prediction,
+                   input=self.named_inputs['train input data'],
+                   model=self.model, output=self.output,
+                   n_components=self.n_clusters, max_iter=self.max_iter,
+                   doc_topic_prior=self.doc_topic_pior,
+                   topic_word_prior=self.topic_word_prior,
+                   learning_method=self.learning_method)
+
+        return dedent(code)

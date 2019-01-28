@@ -2,6 +2,44 @@
 from textwrap import dedent
 from juicer.operation import Operation
 
+# noinspection PyAbstractClass
+class ClusteringOperation(Operation):
+    FEATURES_PARAM = 'features'
+    PREDICTION_ATTR_PARAM = 'prediction'
+
+    __slots__ = ('features', 'prediction')
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.features = self.prediction = None
+        self.output = self.named_outputs.get(
+                'output data', 'out_{}'.format(self.order))
+        self.model = self.named_outputs.get(
+                'model', 'model_{}'.format(self.order))
+
+    def read_common_params(self, parameters):
+        if not all([self.FEATURES_PARAM in parameters]):
+            msg = _("Parameters '{}' and '{}' must be informed for task {}")
+            raise ValueError(msg.format(
+                self.FEATURES_PARAM, self.LABEL_PARAM,
+                self.__class__))
+        else:
+            self.features = parameters.get(self.FEATURES_PARAM)[0]
+            self.prediction = parameters.get(self.PREDICTION_ATTR_PARAM)
+            self.output = self.named_outputs.get(
+                    'output data', 'out_{}'.format(self.order))
+            self.model = self.named_outputs.get(
+                    'model', 'model_{}'.format(self.order))
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
+    def get_data_out_names(self, sep=','):
+        return ''
+
+    def to_deploy_format(self, id_mapping):
+        return []
+
 
 class ClusteringModelOperation(Operation):
     FEATURES_PARAM = 'features'
@@ -230,6 +268,58 @@ class GaussianMixtureClusteringOperation(Operation):
         return dedent(code)
 
 
+class GaussianMixtureClusteringModelOperation(ClusteringOperation):
+    N_CLUSTERS_PARAM = 'number_of_clusters'
+    MAX_ITER_PARAM = 'max_iterations'
+    TOLERANCE_PARAM = 'tolerance'
+
+    def __init__(self, parameters, named_inputs,
+                 named_outputs):
+        ClusteringOperation.__init__(self, parameters,
+                                     named_inputs, named_outputs)
+
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
+        self.name = 'clustering.GaussianMixtureClusteringModelOperation'
+        if self.has_code:
+            self.read_common_params(parameters)
+            self.number_of_clusters = parameters.get(
+                    self.N_CLUSTERS_PARAM, 1) or 1
+            self.max_iterations = parameters.get(self.MAX_ITER_PARAM,
+                                                 100) or 100
+            self.tolerance = parameters.get(self.TOLERANCE_PARAM,
+                                            0.001) or 0.001
+            self.tolerance = abs(float(self.tolerance))
+
+            vals = [self.number_of_clusters, self.max_iterations]
+            atts = [self.N_CLUSTERS_PARAM, self.MAX_ITER_PARAM]
+            for var, att in zip(vals, atts):
+                if var <= 0:
+                    raise ValueError(
+                            _("Parameter '{}' must be x>0 for task {}").format(
+                                    att, self.__class__))
+
+            self.has_import = \
+                "from sklearn.mixture import GaussianMixture\n"
+
+    def generate_code(self):
+        """Generate code."""
+        code = """
+        X = {input}['{features}'].values.tolist()
+
+        {model} = GaussianMixture(n_components={k}, max_iter={iter}, 
+            tol={tol}).fit(X)
+
+        {output} = {input}.copy()
+        {output}['{prediction}'] = {model}.predict(X).tolist()
+        """.format(output=self.output, model=self.model,
+                   features=self.features, prediction=self.prediction,
+                   input=self.named_inputs['train input data'],
+                   k=self.number_of_clusters,
+                   iter=self.max_iterations, tol=self.tolerance)
+
+        return dedent(code)
+
+
 class KMeansClusteringOperation(Operation):
 
     N_CLUSTERS_PARAM = 'n_clusters'
@@ -298,65 +388,83 @@ class KMeansClusteringOperation(Operation):
         return dedent(code)
 
 
-class LdaClusteringOperation(Operation):
-    N_COMPONENTES_PARAM = 'n_components'
-    ALPHA_PARAM = 'doc_topic_pior'
-    ETA_PARAM = 'topic_word_prior'
-    LEARNING_METHOD_PARAM = 'learning_method'
+class KMeansClusteringModelOperation(ClusteringOperation):
+
+    N_CLUSTERS_PARAM = 'n_clusters'
+    INIT_PARAM = 'init'
     MAX_ITER_PARAM = 'max_iter'
+    TOLERANCE_PARAM = 'tolerance'
+    TYPE_PARAM = 'type'
     SEED_PARAM = 'seed'
 
-    LEARNING_METHOD_ON = 'online'
-    LEARNING_METHOD_BA = 'batch'
+    INIT_PARAM_RANDOM = 'random'
+    INIT_PARAM_KM = 'K-Means++'
+    TYPE_PARAM_KMEANS = 'K-Means'
+    TYPE_PARAM_MB = 'Mini-Batch K-Means'
 
-    def __init__(self, parameters, named_inputs, named_outputs):
-        Operation.__init__(self, parameters, named_inputs, named_outputs)
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        ClusteringOperation.__init__(self, parameters,
+                                     named_inputs,  named_outputs)
 
-        self.has_code = len(named_outputs) > 0
+        self.has_code = any([len(named_outputs) > 0, self.contains_results()])
+        self.name = 'clustering.KMeansClusteringModelOperation'
         if self.has_code:
-            self.output = named_outputs.get(
-                    'algorithm', 'clustering_algorithm_{}'.format(self.order))
-            self.n_clusters = parameters.get(
-                    self.N_COMPONENTES_PARAM, 10) or self.N_COMPONENTES_PARAM
-            self.learning_method = parameters.get(
-                    self.LEARNING_METHOD_PARAM,
-                    self.LEARNING_METHOD_ON) or self.LEARNING_METHOD_ON
-            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 10) or 10
-
-            self.doc_topic_pior = \
-                parameters.get(self.ALPHA_PARAM, 'None') or 'None'
-            self.topic_word_prior = parameters.get(self.ETA_PARAM,
-                                                   'None') or 'None'
-
+            self.read_common_params(parameters)
+            self.n_clusters = parameters.get(self.N_CLUSTERS_PARAM, 8) or 8
+            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 300) or 300
+            self.init_mode = parameters.get(
+                    self.INIT_PARAM, self.INIT_PARAM_KM) or self.INIT_PARAM_KM
+            self.init_mode = self.init_mode.lower()
+            self.tolerance = parameters.get(self.TOLERANCE_PARAM, 0.001)
+            self.tolerance = abs(float(self.tolerance))
             self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
-
-            if self.learning_method not in [self.LEARNING_METHOD_ON,
-                                            self.LEARNING_METHOD_BA]:
-                raise ValueError(
-                    _('Invalid optimizer value {} for class {}').format(
-                        self.learning_method, self.__class__))
+            self.type = parameters.get(
+                    self.TYPE_PARAM,
+                    self.TYPE_PARAM_KMEANS) or self.TYPE_PARAM_KMEANS
 
             vals = [self.n_clusters, self.max_iter]
-            atts = [self.N_COMPONENTES_PARAM, self.MAX_ITER_PARAM]
+            atts = [self.N_CLUSTERS_PARAM, self.MAX_ITER_PARAM]
             for var, att in zip(vals, atts):
                 if var <= 0:
                     raise ValueError(
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
-            self.has_import = \
-                "from sklearn.decomposition import LatentDirichletAllocation\n"
+            if self.type.lower() == "k-means":
+                self.has_import = \
+                    "from sklearn.cluster import KMeans\n"
+            else:
+                self.has_import = \
+                    "from sklearn.cluster import MiniBatchKMeans\n"
 
     def generate_code(self):
         """Generate code."""
         code = """
-        {output} = LatentDirichletAllocation(n_components={n_components}, 
-        doc_topic_prior={doc_topic_prior}, topic_word_prior={topic_word_prior}, 
-        learning_method='{learning_method}', max_iter={max_iter})
-        """.format(n_components=self.n_clusters, max_iter=self.max_iter,
-                   doc_topic_prior=self.doc_topic_pior,
-                   topic_word_prior=self.topic_word_prior,
-                   learning_method=self.learning_method,
-                   output=self.output)
+        X = {input}['{features}'].values.tolist()
+        """.format(features=self.features,
+                   input=self.named_inputs['train input data'])
+
+        if self.type.lower() == "k-means":
+            code += """
+        {model} = KMeans(n_clusters={k}, init='{init}',
+            max_iter={max_iter}, tol={tol}, random_state={seed}).fit(X)
+        """.format(k=self.n_clusters, max_iter=self.max_iter,
+                   tol=self.tolerance, init=self.init_mode,
+                   model=self.model, seed=self.seed)
+        else:
+            code += """
+        {model} = MiniBatchKMeans(n_clusters={k}, init='{init}',
+            max_iter={max_iter}, tol={tol}, random_state={seed}).fit(X)
+        """.format(k=self.n_clusters, max_iter=self.max_iter,
+                   tol=self.tolerance, init=self.init_mode,
+                   model=self.model, seed=self.seed)
+
+        code += """
+        {output} = {input}.copy()
+        {output}['{prediction}'] = {model}.predict(X).tolist()
+        """.format(output=self.output, model=self.model,
+                   prediction=self.prediction,
+                   input=self.named_inputs['train input data'])
 
         return dedent(code)
+

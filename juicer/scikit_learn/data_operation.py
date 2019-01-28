@@ -219,14 +219,30 @@ class DataReaderOperation(Operation):
                     else:
                         raise ValueError(_('Not supported'))
                 else:
+                    encoding = self.metadata.get('encoding', 'utf-8') or 'utf-8'
+                    parsed = urlparse(self.metadata['url'])
+                    open_code = "f = open('{path}', 'rb')".format(
+                            path=parsed.path)
+                    code.append(open_code)
                     code_csv = dedent("""
-                    columns = {}
-                    columns['value'] = object
-                    {output} = spark_session.read{null_option}.schema(
-                        columns).option(
-                        'treatEmptyValuesAsNulls', 'true').text(
-                            url)""".format(output=self.output,
-                                           null_option=null_option))
+                        header = {header}
+                        {output} = pd.read_csv(f, 
+                            sep='{sep}',
+                           encoding='{encoding}',
+                           header=header,
+                           na_values={na_values})
+                        f.close()
+                        if header is None:
+                            {output}.columns = ['col_{{col}}'.format(
+                            col=col) for col in {output}.columns]
+                    """).format(output=self.output,
+                                input=parsed.path,
+                                sep=self.sep,
+                                encoding=encoding,
+                                header=0 if
+                                self.header else 'None',
+                                na_values=self.null_values if len(
+                                        self.null_values) else 'None')
                     code.append(code_csv)
             elif self.metadata['format'] == 'PARQUET_FILE':
                 raise ValueError(_('Not supported'))

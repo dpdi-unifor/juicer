@@ -110,41 +110,69 @@ class ScikitLearnTranspiler(Transpiler):
             'dbscan-clustering': clustering.DBSCANClusteringOperation,
             'gaussian-mixture-clustering':
                 clustering.GaussianMixtureClusteringOperation,
+            'gaussian-mixture-clustering-model':
+                clustering.GaussianMixtureClusteringModelOperation,
             'k-means-clustering': clustering.KMeansClusteringOperation,
-            'lda-clustering': clustering.LdaClusteringOperation,
+            'k-means-clustering-model':
+                clustering.KMeansClusteringModelOperation,
 
             # ------ Classification  -----#
             'classification-model': classifiers.ClassificationModelOperation,
             'decision-tree-classifier':
                 classifiers.DecisionTreeClassifierOperation,
+            'decision-tree-classifier-model':
+                classifiers.DecisionTreeClassifierModelOperation,
             'gbt-classifier': classifiers.GBTClassifierOperation,
+            'gbt-classifier-model': classifiers.GBTClassifierModelOperation,
             'knn-classifier': classifiers.KNNClassifierOperation,
+            'knn-classifier-model': classifiers.KNNClassifierModelOperation,
             'logistic-regression': classifiers.LogisticRegressionOperation,
+            'logistic-regression-model':
+                classifiers.LogisticRegressionModelOperation,
             'mlp-classifier': classifiers.MLPClassifierOperation,
+            'mlp-classifier-model': classifiers.MLPClassifierModelOperation,
             'naive-bayes-classifier': classifiers.NaiveBayesClassifierOperation,
+            'naive-bayes-classifier-model':
+                classifiers.NaiveBayesClassifierModelOperation,
             'perceptron-classifier': classifiers.PerceptronClassifierOperation,
+            'perceptron-classifier-model':
+                classifiers.PerceptronClassifierModelOperation,
             'random-forest-classifier':
                 classifiers.RandomForestClassifierOperation,
+            'random-forest-classifier-model':
+                classifiers.RandomForestClassifierModelOperation,
             'svm-classification': classifiers.SvmClassifierOperation,
+            'svm-classification-model': classifiers.SvmClassifierModelOperation,
 
             # ------ Regression  -----#
             'regression-model': regression.RegressionModelOperation,
             'gbt-regressor': regression.GradientBoostingRegressorOperation,
+            'gbt-regressor-model':
+                regression.GradientBoostingRegressorModelOperation,
             'huber-regressor': regression.HuberRegressorOperation,
+            'huber-regressor-model': regression.HuberRegressorModelOperation,
             'isotonic-regression':
                 regression.IsotonicRegressionOperation,
+            'isotonic-regression-model':
+                regression.IsotonicRegressionModelOperation,
             'linear-regression': regression.LinearRegressionOperation,
+            'linear-regression-model': regression.LinearRegressionModelOperation,
             'mlp-regressor': regression.MLPRegressorOperation,
+            'mlp-regressor-model': regression.MLPRegressorModelOperation,
             'random-forest-regressor':
                 regression.RandomForestRegressorOperation,
+            'random-forest-regressor-model':
+                regression.RandomForestRegressorModelOperation,
             'sgd-regressor': regression.SGDRegressorOperation,
+            'sgd-regressor-model': regression.SGDRegressorModelOperation,
         }
 
         text_ops = {
             'generate-n-grams': text_operations.GenerateNGramsOperation,
             'remove-stop-words': text_operations.RemoveStopWordsOperation,
             'tokenizer': text_operations.TokenizerOperation,
-            'word-to-vector': text_operations.WordToVectorOperation
+            'word-to-vector': text_operations.WordToVectorOperation,
+            'lda-clustering-model': text_operations.LdaClusteringOperation,
         }
 
         other_ops = {

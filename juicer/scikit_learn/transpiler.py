@@ -11,6 +11,7 @@ import juicer.scikit_learn.model_operation as model
 import juicer.scikit_learn.regression_operation as regression
 import juicer.scikit_learn.text_operation as text_operations
 import juicer.scikit_learn.vis_operation as vis_operation
+import juicer.scikit_learn.outlier_detection as lof
 import os
 from juicer import operation
 from juicer.transpiler import Transpiler
@@ -53,7 +54,11 @@ class ScikitLearnTranspiler(Transpiler):
             'execute-python': etl.ExecutePythonOperation,
             'execute-sql': etl.ExecuteSQLOperation,
             'filter-selection': etl.FilterOperation,
+            'generalized-linear-regression': regression.GeneralizedLinearRegressionOperation,
             'join': etl.JoinOperation,
+            'k-fold': etl.SplitKFoldOperation,
+            'locality-sensitive-hashing': feature_extraction.LSHOperation,
+            'local-outlier-factor': lof.OutlierDetectionOperation,
             'projection': etl.SelectOperation,
             'remove-duplicated-rows': etl.DistinctOperation,
             'replace-value': etl.ReplaceValuesOperation,

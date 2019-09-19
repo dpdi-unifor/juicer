@@ -1,5 +1,6 @@
-from textwrap import dedent
+# -*- coding: utf-8 -*-
 
+from textwrap import dedent
 from juicer.operation import Operation
 from itertools import zip_longest
 import re
@@ -495,3 +496,89 @@ class SGDRegressorOperation(RegressionOperation):
 
         return code
 
+
+class GeneralizedLinearRegressionOperation(Operation):
+
+    FIT_INTERCEPT_ATTRIBUTE_PARAM = 'fit_intercept'
+    NORMALIZE_ATTRIBUTE_PARAM = 'normalize'
+    COPY_X_ATTRIBUTE_PARAM = 'copy_X'
+    N_JOBS_ATTRIBUTE_PARAM = 'n_jobs'
+    LABEL_PARAM = 'label'
+
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+        self.has_code = True
+
+        self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_ATTRIBUTE_PARAM, 1))
+        self.normalize = int(parameters.get(self.NORMALIZE_ATTRIBUTE_PARAM, 0))
+        self.copy_X = int(parameters.get(self.COPY_X_ATTRIBUTE_PARAM, 1))
+        self.n_jobs = int(parameters.get(self.N_JOBS_ATTRIBUTE_PARAM, 0))
+
+        if not all([self.LABEL_PARAM in parameters]):
+            msg = _("Parameters '{}' must be informed for task {}")
+            raise ValueError(msg.format(
+                self.LABEL_PARAM,
+                self.__class__.__name__))
+
+        self.label = parameters[self.LABEL_PARAM]
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+        self.output = self.named_outputs.get(
+            'output data', 'out_task_{}'.format(self.order))
+
+        self.input_treatment()
+
+        self.has_import = \
+            """
+            import matplotlib.pyplot as plt
+            import numpy as np
+            from sklearn import datasets, linear_model
+            from sklearn.metrics import mean_squared_error, r2_score
+            """
+
+    def input_treatment(self):
+        if self.n_jobs < -1:
+            raise ValueError(
+                _("Parameter '{}' must be x>=-1 for task {}").format(
+                    self.N_JOBS_ATTRIBUTE_PARAM, self.__class__))
+
+        self.n_jobs = 1 if int(self.n_jobs) == 0 else int(self.n_jobs)
+
+        self.fit_intercept = True if int(self.fit_intercept) == 1 else False
+
+        self.normalize = True if int(self.normalize) == 1 else False
+
+        self.copy_X = True if int(self.copy_X) == 1 else False
+
+    @property
+    def get_inputs_names(self, sep=','):
+        return self.named_inputs
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        """Generate code."""
+
+        code = """
+            {output_data} = {input}.copy()
+            X_train = {input}.values.tolist()
+            y = {input}['{label}'].values.tolist()
+            {model} = linear_model.LinearRegression(fit_intercept={fit_intercept}, normalize={normalize}, 
+                                                    copy_X={copy_X}, n_jobs={n_jobs}).fit(X_train, y)
+            """.format(output=self.output,
+                       fit_intercept=self.fit_intercept,
+                       normalize=self.normalize,
+                       copy_X=self.copy_X,
+                       n_jobs=self.n_jobs,
+                       model=self.model,
+                       input=input_data,
+                       output_data=self.output,
+                       label=self.label[0])
+
+        return dedent(code)

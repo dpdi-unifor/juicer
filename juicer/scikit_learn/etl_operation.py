@@ -986,3 +986,64 @@ class UnionOperation(Operation):
                     self.named_inputs['input data 2'])
         return dedent(code)
 
+
+class SplitKFoldOperation(Operation):
+
+    N_SPLITS_ATTRIBUTE_PARAM = 'n_splits'
+    SHUFFLE_ATTRIBUTE_PARAM = 'shuffle'
+    RANDOM_STATE_ATTRIBUTE_PARAM = 'random_state'
+    LABEL_ATTRIBUTE_PARAM = 'label'
+    ATTRIBUTE_ATTRIBUTE_PARAM = 'attribute'
+
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+        self.has_code = True
+
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
+
+        self.input = self.named_inputs['input data']
+
+        self.n_splits = int(parameters.get(self.N_SPLITS_ATTRIBUTE_PARAM, 3))
+        self.shuffle = int(parameters.get(self.SHUFFLE_ATTRIBUTE_PARAM, 0))
+        self.random_state = int(parameters.get(self.RANDOM_STATE_ATTRIBUTE_PARAM, 0))
+        self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM, None)
+        self.attribute = parameters.get(self.ATTRIBUTE_ATTRIBUTE_PARAM, None)
+
+        self.input_treatment()
+        self.has_import = \
+            """
+            import numpy as np
+            from sklearn.model_selection import KFold
+            """
+
+    @property
+    def get_inputs_names(self, sep=','):
+        return self.named_inputs['input data']
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def input_treatment(self):
+        if self.n_splits < 2:
+            raise ValueError(
+                _("Parameter '{}' must be x>=2 for task {}").format(
+                    self.N_SPLITS_ATTRIBUTE_PARAM, self.__class__))
+
+        self.shuffle = True if int(self.shuffle) == 1 else False
+
+    def generate_code(self):
+        """Generate code."""
+
+        code = """
+            {output_data} = {input}.copy()
+            {output_data} = KFold(n_splits={n_splits}, shuffle={shuffle}, random_state={random_state})
+            """.format(output=self.output,
+                       input=self.named_inputs['input data'],
+                       n_splits=self.n_splits,
+                       shuffle=self.shuffle,
+                       random_state=self.random_state,
+                       output_data=self.output)
+
+        return dedent(code)

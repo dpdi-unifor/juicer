@@ -1,13 +1,16 @@
 # coding=utf-8
 
 
+import collections
 import decimal
 import itertools
 import json
+from collections import Iterable
 from textwrap import dedent
 
 import datetime
 
+from juicer import auditing
 from juicer.operation import Operation
 from juicer.service import limonero_service
 from juicer.util import chunks

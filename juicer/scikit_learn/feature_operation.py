@@ -331,3 +331,87 @@ class PCAOperation(Operation):
                    att=self.attributes[0], alias=self.alias,
                    n_comp=self.n_components)
         return dedent(code)
+
+
+class LSHOperation(Operation):
+
+    N_ESTIMATORS_ATTRIBUTE_PARAM = 'n_estimators'
+    MIN_HASH_MATCH_ATTRIBUTE_PARAM = 'min_hash_match'
+    N_CANDIDATES = 'n_candidates'
+    NUMBER_NEIGHBORS_ATTRIBUTE_PARAM = 'n_neighbors'
+    RANDOM_STATE_ATTRIBUTE_PARAM = 'random_state'
+    RADIUS_ATTRIBUTE_PARAM = 'radius'
+    RADIUS_CUTOFF_RATIO_ATTRIBUTE_PARAM = 'radius_cutoff_ratio'
+    LABEL_PARAM = 'label'
+
+    def __init__(self, parameters,  named_inputs, named_outputs):
+        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+
+        self.has_code = True
+
+        self.number_neighbors = int(parameters.get(self.NUMBER_NEIGHBORS_ATTRIBUTE_PARAM, 5))
+        self.n_estimators = int(parameters.get(self.N_ESTIMATORS_ATTRIBUTE_PARAM, 10))
+        self.min_hash_match = int(parameters.get(self.MIN_HASH_MATCH_ATTRIBUTE_PARAM, 4))
+        self.n_candidates = int(parameters.get(self.N_CANDIDATES, 10))
+        self.random_state = int(parameters.get(self.RANDOM_STATE_ATTRIBUTE_PARAM, 0))
+        self.radius = float(parameters.get(self.RADIUS_ATTRIBUTE_PARAM, 1.0))
+        self.radius_cutoff_ratio = float(parameters.get(self.RADIUS_CUTOFF_RATIO_ATTRIBUTE_PARAM, 0.9))
+
+        if not all([self.LABEL_PARAM in parameters]):
+            msg = _("Parameters '{}' must be informed for task {}")
+            raise ValueError(msg.format(
+                self.LABEL_PARAM,
+                self.__class__.__name__))
+
+        self.label = parameters[self.LABEL_PARAM]
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+        self.output = self.named_outputs.get(
+            'output data', 'out_task_{}'.format(self.order))
+
+        self.input_treatment()
+
+        self.has_import = \
+            """
+            from sklearn.neighbors import LSHForest
+            """
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
+    def input_treatment(self):
+        if self.radius_cutoff_ratio < 0 or self.radius_cutoff_ratio > 1:
+            raise ValueError(
+                _("Parameter '{}' must be x>=0 and x<=1 for task {}").format(
+                    self.RADIUS_CUTOFF_RATIO_ATTRIBUTE_PARAM, self.__class__))
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        """Generate code."""
+
+        code = """
+            {output_data} = {input}.copy()
+            X_train = {input}.values.tolist()
+            lshf = LSHForest(min_hash_match={min_hash_match}, n_candidates={n_candidates}, n_estimators={n_estimators},
+                             number_neighbors={number_neighbors}, radius={radius}, 
+                             radius_cutoff_ratio={radius_cutoff_ratio}, random_state={random_state})
+            {model} = lshf.fit(X_train) 
+            
+            
+            """.format(output=self.output,
+                       input=input_data,
+                       number_neighbors=self.number_neighbors,
+                       n_estimators=self.n_estimators,
+                       min_hash_match=self.min_hash_match,
+                       n_candidates=self.n_candidates,
+                       random_state=self.random_state,
+                       radius=self.radius,
+                       radius_cutoff_ratio=self.radius_cutoff_ratio,
+                       output_data=self.output,
+                       model=self.model)
+
+        return dedent(code)

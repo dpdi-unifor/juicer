@@ -3,6 +3,9 @@
 from textwrap import dedent
 from juicer.operation import Operation
 import re
+import pandas as pd
+from juicer.util import dataframe_util
+
 
 class OutlierDetectionOperation(Operation):
 
@@ -78,9 +81,10 @@ class OutlierDetectionOperation(Operation):
                                          metric="{metric}", algorithm="{algorithm}", n_jobs={n_jobs}, 
                                          leaf_size={leaf_size}, novelty={novelty}, p={p}, metric_params={metric_params})
             X = {input}.values.tolist()
-            y_pred = clf.fit_predict(X)
-            {output_data} = clf.negative_outlier_factor_
-            
+            p = clf.fit_predict(X).astype(float)
+            clf2 = clf.negative_outlier_factor_ 
+            T2 = pd.DataFrame(p, columns = ['Outlier'])
+            {output_data} = pd.concat([{input},T2],axis=1)
             """.format(output=self.output,
                        input=self.named_inputs['input data'],
                        number_neighbors=self.number_neighbors,

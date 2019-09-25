@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 from gettext import gettext
 from textwrap import dedent
-
+import pandas as pd
 from juicer.operation import Operation
 from juicer.scikit_learn.expression import Expression
 
@@ -413,7 +413,7 @@ class ExecutePythonOperation(Operation):
         compiled_code = compile_restricted(user_code,
         str('python_execute_{order}'), str('exec'))
         try:
-            exec(compiled_code, ctx)
+            exec compiled_code in ctx
 
             # Retrieve values changed in the context
             out1 = ctx['out1']
@@ -1003,8 +1003,6 @@ class SplitKFoldOperation(Operation):
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
-        self.input = self.named_inputs['input data']
-
         self.n_splits = int(parameters.get(self.N_SPLITS_ATTRIBUTE_PARAM, 3))
         self.shuffle = int(parameters.get(self.SHUFFLE_ATTRIBUTE_PARAM, 0))
         self.random_state = int(parameters.get(self.RANDOM_STATE_ATTRIBUTE_PARAM, 0))
@@ -1019,9 +1017,6 @@ class SplitKFoldOperation(Operation):
             """
 
     @property
-    def get_inputs_names(self, sep=','):
-        return self.named_inputs['input data']
-
     def get_data_out_names(self, sep=','):
         return self.output
 
@@ -1038,7 +1033,22 @@ class SplitKFoldOperation(Operation):
 
         code = """
             {output_data} = {input}.copy()
-            {output_data} = KFold(n_splits={n_splits}, shuffle={shuffle}, random_state={random_state})
+            kf = KFold(n_splits={n_splits}, shuffle={shuffle}, random_state={random_state})
+            list = []
+            for train_index, test_index in kf.split({input}.values.tolist()):
+                #print("TRAIN:", train_index, "TEST:", test_index)
+                break
+            
+            for i in range(len({input}.values.tolist())):
+                list.append(0)
+                 
+            for i in range(len(train_index)):
+                if i < len(train_index):
+                    list[train_index[i]] = 1.0
+                if i < len(test_index):
+                    list[test_index[i]] = 0.0
+            T2 = pd.DataFrame(list, columns = ['Fold'])
+            {output_data} = pd.concat([{input},T2],axis=1)
             """.format(output=self.output,
                        input=self.named_inputs['input data'],
                        n_splits=self.n_splits,

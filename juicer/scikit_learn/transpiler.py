@@ -54,11 +54,9 @@ class ScikitLearnTranspiler(Transpiler):
             'execute-python': etl.ExecutePythonOperation,
             'execute-sql': etl.ExecuteSQLOperation,
             'filter-selection': etl.FilterOperation,
-            'generalized-linear-regression': regression.GeneralizedLinearRegressionOperation,
             'join': etl.JoinOperation,
             'k-fold': etl.SplitKFoldOperation,
             'locality-sensitive-hashing': feature_extraction.LSHOperation,
-            'local-outlier-factor': lof.OutlierDetectionOperation,
             'projection': etl.SelectOperation,
             'remove-duplicated-rows': etl.DistinctOperation,
             'replace-value': etl.ReplaceValuesOperation,
@@ -135,6 +133,7 @@ class ScikitLearnTranspiler(Transpiler):
             # ------ Regression  -----#
             'regression-model': regression.RegressionModelOperation,
             'gbt-regressor': regression.GradientBoostingRegressorOperation,
+            'generalized-linear-regression': regression.GeneralizedLinearRegressionOperation,
             'huber-regressor': regression.HuberRegressorOperation,
             'isotonic-regression':
                 regression.IsotonicRegressionOperation,
@@ -143,6 +142,9 @@ class ScikitLearnTranspiler(Transpiler):
             'random-forest-regressor':
                 regression.RandomForestRegressorOperation,
             'sgd-regressor': regression.SGDRegressorOperation,
+
+            # ------ Outlier  -----#
+            'local-outlier-factor': lof.OutlierDetectionOperation,
         }
 
         text_ops = {

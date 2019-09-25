@@ -3,6 +3,7 @@
 from textwrap import dedent
 from juicer.operation import Operation
 from itertools import zip_longest
+import pandas as pd
 import re
 
 
@@ -510,10 +511,18 @@ class GeneralizedLinearRegressionOperation(Operation):
 
         self.has_code = True
 
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
+
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+
         self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_ATTRIBUTE_PARAM, 1))
         self.normalize = int(parameters.get(self.NORMALIZE_ATTRIBUTE_PARAM, 0))
         self.copy_X = int(parameters.get(self.COPY_X_ATTRIBUTE_PARAM, 1))
         self.n_jobs = int(parameters.get(self.N_JOBS_ATTRIBUTE_PARAM, 0))
+
+        self.label = parameters[self.LABEL_PARAM]
 
         if not all([self.LABEL_PARAM in parameters]):
             msg = _("Parameters '{}' must be informed for task {}")
@@ -521,11 +530,6 @@ class GeneralizedLinearRegressionOperation(Operation):
                 self.LABEL_PARAM,
                 self.__class__.__name__))
 
-        self.label = parameters[self.LABEL_PARAM]
-        self.model = self.named_outputs.get(
-            'model', 'model_{}'.format(self.order))
-        self.output = self.named_outputs.get(
-            'output data', 'out_task_{}'.format(self.order))
 
         self.input_treatment()
 
@@ -536,6 +540,16 @@ class GeneralizedLinearRegressionOperation(Operation):
             from sklearn import datasets, linear_model
             from sklearn.metrics import mean_squared_error, r2_score
             """
+
+    @property
+    def get_inputs_names(self):
+        return self.named_inputs['train input data']
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
 
     def input_treatment(self):
         if self.n_jobs < -1:
@@ -551,34 +565,25 @@ class GeneralizedLinearRegressionOperation(Operation):
 
         self.copy_X = True if int(self.copy_X) == 1 else False
 
-    @property
-    def get_inputs_names(self, sep=','):
-        return self.named_inputs
-
-    def get_data_out_names(self, sep=','):
-        return self.output
-
-    def get_output_names(self, sep=', '):
-        return sep.join([self.output, self.model])
-
     def generate_code(self):
-        input_data = self.named_inputs['input data']
         """Generate code."""
 
         code = """
             {output_data} = {input}.copy()
-            X_train = {input}.values.tolist()
-            y = {input}['{label}'].values.tolist()
+            X_train = {input}
+            y = {input}['{label}']
             {model} = linear_model.LinearRegression(fit_intercept={fit_intercept}, normalize={normalize}, 
                                                     copy_X={copy_X}, n_jobs={n_jobs}).fit(X_train, y)
+            X_train = X_train.astype(float)
+            {output_data} = pd.DataFrame(X_train, columns = ['Output'])
             """.format(output=self.output,
                        fit_intercept=self.fit_intercept,
                        normalize=self.normalize,
                        copy_X=self.copy_X,
                        n_jobs=self.n_jobs,
                        model=self.model,
-                       input=input_data,
-                       output_data=self.output,
-                       label=self.label[0])
+                       input=self.named_inputs,
+                       label=self.label[0],
+                       output_data=self.output)
 
         return dedent(code)

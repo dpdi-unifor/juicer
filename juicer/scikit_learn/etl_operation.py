@@ -994,6 +994,8 @@ class SplitKFoldOperation(Operation):
     RANDOM_STATE_ATTRIBUTE_PARAM = 'random_state'
     LABEL_ATTRIBUTE_PARAM = 'label'
     ATTRIBUTE_ATTRIBUTE_PARAM = 'attribute'
+    STRATIFIED_ATTRIBUTE_PARAM = 'stratified'
+    COLUMN_ATTRIBUTE_PARAM = 'column'
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
@@ -1008,12 +1010,15 @@ class SplitKFoldOperation(Operation):
         self.random_state = int(parameters.get(self.RANDOM_STATE_ATTRIBUTE_PARAM, 0))
         self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM, None)
         self.attribute = parameters.get(self.ATTRIBUTE_ATTRIBUTE_PARAM, None)
+        self.stratified = int(parameters.get(self.STRATIFIED_ATTRIBUTE_PARAM, 0))
+        self.column = parameters.get(self.COLUMN_ATTRIBUTE_PARAM, None)
 
         self.input_treatment()
         self.has_import = \
             """
             import numpy as np
             from sklearn.model_selection import KFold
+            from sklearn.model_selection import StratifiedKFold
             """
 
     @property
@@ -1027,33 +1032,62 @@ class SplitKFoldOperation(Operation):
                     self.N_SPLITS_ATTRIBUTE_PARAM, self.__class__))
 
         self.shuffle = True if int(self.shuffle) == 1 else False
+        self.stratified = True if int(self.stratified) == 1 else False
 
     def generate_code(self):
         """Generate code."""
 
-        code = """
-            {output_data} = {input}.copy()
-            kf = KFold(n_splits={n_splits}, shuffle={shuffle}, random_state={random_state})
-            list = []
-            for train_index, test_index in kf.split({input}.values.tolist()):
-                #print("TRAIN:", train_index, "TEST:", test_index)
-                break
-            
-            for i in range(len({input}.values.tolist())):
-                list.append(0)
-                 
-            for i in range(len(train_index)):
-                if i < len(train_index):
-                    list[train_index[i]] = 1.0
-                if i < len(test_index):
-                    list[test_index[i]] = 0.0
-            T2 = pd.DataFrame(list, columns = ['Fold'])
-            {output_data} = pd.concat([{input},T2],axis=1)
-            """.format(output=self.output,
-                       input=self.named_inputs['input data'],
-                       n_splits=self.n_splits,
-                       shuffle=self.shuffle,
-                       random_state=self.random_state,
-                       output_data=self.output)
-
-        return dedent(code)
+        if self.stratified: #é estratificado
+            code = """
+                {output_data} = {input}.copy()
+                kf = KFold(n_splits={n_splits}, shuffle={shuffle}, random_state={random_state})
+                list = []
+                for train_index, test_index in kf.split({input}.values.tolist()):
+                    #print("TRAIN:", train_index, "TEST:", test_index)
+                    #gera mais bases
+                
+                for i in range(len({input}.values.tolist())):
+                    list.append(0)
+                     
+                for i in range(len(train_index)):
+                    if i < len(train_index):
+                        list[train_index[i]] = 1.0
+                    if i < len(test_index):
+                        list[test_index[i]] = 0.0
+                T2 = pd.DataFrame(list, columns = ['Fold'])
+                {output_data} = pd.concat([{input},T2],axis=1)
+                """.format(output=self.output,
+                           input=self.named_inputs['input data'],
+                           n_splits=self.n_splits,
+                           shuffle=self.shuffle,
+                           random_state=self.random_state,
+                           output_data=self.output)
+            return dedent(code)
+        else:
+            code = """
+                {output_data} = {input}.copy()
+                kf = KFold(n_splits={n_splits}, shuffle={shuffle}, random_state={random_state})
+                list = []
+                for train_index, test_index in kf.split({input}.values.tolist()):
+                    #print("TRAIN:", train_index, "TEST:", test_index)
+                    break
+                
+                for i in range(len({input}.values.tolist())):
+                    list.append(0)
+                     
+                for i in range(len(train_index)):
+                    if i < len(train_index):
+                        list[train_index[i]] = 1.0
+                    if i < len(test_index):
+                        list[test_index[i]] = 0.0
+                T2 = pd.DataFrame(list, columns = ['Fold'])
+                {output_data} = pd.concat([{input},T2],axis=1)
+                """.format(output=self.output,
+                           input=self.named_inputs['input data'],
+                           n_splits=self.n_splits,
+                           shuffle=self.shuffle,
+                           random_state=self.random_state,
+                           output_data=self.output,
+                           stratified=self.stratified,
+                           column=self.column)
+            return dedent(code)

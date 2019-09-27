@@ -530,7 +530,6 @@ class GeneralizedLinearRegressionOperation(Operation):
                 self.LABEL_PARAM,
                 self.__class__.__name__))
 
-
         self.input_treatment()
 
         self.has_import = \
@@ -543,7 +542,7 @@ class GeneralizedLinearRegressionOperation(Operation):
 
     @property
     def get_inputs_names(self):
-        return self.named_inputs['train input data']
+        return self.input
 
     def get_data_out_names(self, sep=','):
         return self.output
@@ -574,15 +573,14 @@ class GeneralizedLinearRegressionOperation(Operation):
             y = {input}['{label}']
             {model} = linear_model.LinearRegression(fit_intercept={fit_intercept}, normalize={normalize}, 
                                                     copy_X={copy_X}, n_jobs={n_jobs}).fit(X_train, y)
-            X_train = X_train.astype(float)
-            {output_data} = pd.DataFrame(X_train, columns = ['Output'])
+            {output_data} = {input}
             """.format(output=self.output,
                        fit_intercept=self.fit_intercept,
                        normalize=self.normalize,
                        copy_X=self.copy_X,
                        n_jobs=self.n_jobs,
                        model=self.model,
-                       input=self.named_inputs,
+                       input=self.named_inputs['input data'],
                        label=self.label[0],
                        output_data=self.output)
 

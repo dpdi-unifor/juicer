@@ -1067,20 +1067,14 @@ class SplitKFoldOperation(Operation):
             code = """
                 {output_data} = {input}.copy()
                 kf = KFold(n_splits={n_splits}, shuffle={shuffle}, random_state={random_state})
-                list = []
+                lista = []
+                j = 0
                 for train_index, test_index in kf.split({input}.values.tolist()):
-                    #print("TRAIN:", train_index, "TEST:", test_index)
-                    break
-                
-                for i in range(len({input}.values.tolist())):
-                    list.append(0)
-                     
-                for i in range(len(train_index)):
-                    if i < len(train_index):
-                        list[train_index[i]] = 1.0
-                    if i < len(test_index):
-                        list[test_index[i]] = 0.0
-                T2 = pd.DataFrame(list, columns = ['Fold'])
+                    for i in range(len(test_index)):
+                        test_index[i] = j
+                    lista = np.concatenate((lista,test_index))
+                    j += 1 
+                T2 = pd.DataFrame(lista, columns = ['Fold'])
                 {output_data} = pd.concat([{input},T2],axis=1)
                 """.format(output=self.output,
                            input=self.named_inputs['input data'],

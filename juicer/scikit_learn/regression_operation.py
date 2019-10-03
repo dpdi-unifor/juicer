@@ -498,6 +498,8 @@ class SGDRegressorOperation(RegressionOperation):
         return code
 
 
+
+
 class GeneralizedLinearRegressionOperation(Operation):
 
     FIT_INTERCEPT_ATTRIBUTE_PARAM = 'fit_intercept'
@@ -506,11 +508,12 @@ class GeneralizedLinearRegressionOperation(Operation):
     N_JOBS_ATTRIBUTE_PARAM = 'n_jobs'
     LABEL_PARAM = 'label'
 
-    def __init__(self, parameters,  named_inputs, named_outputs):
-        Operation.__init__(self, parameters,  named_inputs,  named_outputs)
+    def __init__(self, parameters, named_inputs, named_outputs):
+        RegressionOperation.__init__(self, parameters,  named_inputs,  named_outputs)
 
         self.has_code = True
 
+        #self.input = self.named_inputs['train input data']
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -522,7 +525,8 @@ class GeneralizedLinearRegressionOperation(Operation):
         self.copy_X = int(parameters.get(self.COPY_X_ATTRIBUTE_PARAM, 1))
         self.n_jobs = int(parameters.get(self.N_JOBS_ATTRIBUTE_PARAM, 0))
 
-        self.label = parameters[self.LABEL_PARAM]
+        #self.label = parameters[self.LABEL_PARAM]
+        self.label = parameters['label'][0]
 
         if not all([self.LABEL_PARAM in parameters]):
             msg = _("Parameters '{}' must be informed for task {}")
@@ -541,9 +545,6 @@ class GeneralizedLinearRegressionOperation(Operation):
             """
 
     @property
-    def get_inputs_names(self):
-        return self.input
-
     def get_data_out_names(self, sep=','):
         return self.output
 
@@ -569,8 +570,8 @@ class GeneralizedLinearRegressionOperation(Operation):
 
         code = """
             {output_data} = {input}.copy()
-            X_train = {input}
-            y = {input}['{label}']
+            X_train = {input}.values.tolist()
+            y = {input}['{label}'].values.tolist()
             {model} = linear_model.LinearRegression(fit_intercept={fit_intercept}, normalize={normalize}, 
                                                     copy_X={copy_X}, n_jobs={n_jobs}).fit(X_train, y)
             {output_data} = {input}

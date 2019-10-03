@@ -1011,7 +1011,7 @@ class SplitKFoldOperation(Operation):
         self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM, None)
         self.attribute = parameters.get(self.ATTRIBUTE_ATTRIBUTE_PARAM, None)
         self.stratified = int(parameters.get(self.STRATIFIED_ATTRIBUTE_PARAM, 0))
-        self.column = parameters.get(self.COLUMN_ATTRIBUTE_PARAM, None)
+        self.column = parameters['column'][0]
 
         self.input_treatment()
         self.has_import = \
@@ -1037,31 +1037,27 @@ class SplitKFoldOperation(Operation):
     def generate_code(self):
         """Generate code."""
 
-        if self.stratified: #é estratificado
+        if self.stratified:
             code = """
                 {output_data} = {input}.copy()
-                kf = KFold(n_splits={n_splits}, shuffle={shuffle}, random_state={random_state})
-                list = []
-                for train_index, test_index in kf.split({input}.values.tolist()):
-                    #print("TRAIN:", train_index, "TEST:", test_index)
-                    #gera mais bases
-                
-                for i in range(len({input}.values.tolist())):
-                    list.append(0)
-                     
-                for i in range(len(train_index)):
-                    if i < len(train_index):
-                        list[train_index[i]] = 1.0
-                    if i < len(test_index):
-                        list[test_index[i]] = 0.0
-                T2 = pd.DataFrame(list, columns = ['Fold'])
+                skf = StratifiedKFold(n_splits={n_splits}, shuffle={shuffle}, random_state={random_state})
+                lista = []
+                j = 0
+                for train_index, test_index in skf.split({input}.values.tolist(), {input}['{column}'].values.tolist()):
+                    for i in range(len(test_index)):
+                        test_index[i] = j
+                    lista = np.concatenate((lista,test_index))
+                    j += 1 
+                T2 = pd.DataFrame(lista, columns = ['{attribute}'])
                 {output_data} = pd.concat([{input},T2],axis=1)
                 """.format(output=self.output,
                            input=self.named_inputs['input data'],
                            n_splits=self.n_splits,
                            shuffle=self.shuffle,
                            random_state=self.random_state,
-                           output_data=self.output)
+                           output_data=self.output,
+                           column=self.column,
+                           attribute=self.attribute)
             return dedent(code)
         else:
             code = """
@@ -1074,7 +1070,7 @@ class SplitKFoldOperation(Operation):
                         test_index[i] = j
                     lista = np.concatenate((lista,test_index))
                     j += 1 
-                T2 = pd.DataFrame(lista, columns = ['Fold'])
+                T2 = pd.DataFrame(lista, columns = ['{attribute}'])
                 {output_data} = pd.concat([{input},T2],axis=1)
                 """.format(output=self.output,
                            input=self.named_inputs['input data'],
@@ -1083,5 +1079,6 @@ class SplitKFoldOperation(Operation):
                            random_state=self.random_state,
                            output_data=self.output,
                            stratified=self.stratified,
-                           column=self.column)
+                           column=self.column,
+                           attribute=self.attribute)
             return dedent(code)

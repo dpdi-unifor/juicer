@@ -197,14 +197,14 @@ class EvaluateModelOperation(Operation):
                     'display_image', {'value': 1}).get('value', 1) in (1, '1')
 
             code = [dedent("""
-                metric_value = 0.0
-                display_text = {display_text}
-                display_image = {display_image}
-                model_type = '{model_type}'
-                label_col = '{label_attr}'
-                prediction_col = '{prediction_attr}'
-                {model_output} = None
-                """)]
+            metric_value = 0.0
+            display_text = {display_text}
+            display_image = {display_image}
+            model_type = '{model_type}'
+            label_col = '{label_attr}'
+            prediction_col = '{prediction_attr}'
+            {model_output} = None
+            """)]
 
             if self.type_model == 'classification':
                 self._get_code_for_classification_metrics(code)
@@ -247,7 +247,7 @@ class EvaluateModelOperation(Operation):
                     task_id=self.parameters['task_id'],
                     title=_('Evaluation result'),
             )
-            print (code)
+            #print (code)
             return dedent(code)
 
     @staticmethod

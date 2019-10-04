@@ -255,14 +255,14 @@ class LinearRegressionOperation(RegressionOperation):
         self.has_code = len(named_outputs) > 0
 
         if self.has_code:
-            self.alpha = parameters.get(self.ALPHA_PARAM, 1.0) or 1.0
-            self.elastic = parameters.get(self.ELASTIC_NET_PARAM,
-                                          0.5) or 0.5
+            self.alpha = float(parameters.get(self.ALPHA_PARAM, 1.0) or 1.0)
+            self.elastic = float(parameters.get(self.ELASTIC_NET_PARAM,
+                                          0.5) or 0.5)
             self.normalize = self.parameters.get(self.NORMALIZE_PARAM,
                                                  True) in (1, '1', 'true', True)
-            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 1000) or 1000
-            self.tol = self.parameters.get(
-                    self.TOLERANCE_PARAM, 0.0001) or 0.0001
+            self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 1000) or 1000)
+            self.tol = float(self.parameters.get(
+                    self.TOLERANCE_PARAM, 0.0001) or 0.0001)
             self.tol = abs(float(self.tol))
             self.seed = self.parameters.get(self.SEED_PARAM, 'None') or 'None'
 
@@ -520,6 +520,9 @@ class GeneralizedLinearRegressionOperation(Operation):
         self.model = self.named_outputs.get(
             'model', 'model_{}'.format(self.order))
 
+        self.input_port = self.named_inputs.get(
+            'input data', 'in_{}'.format(self.order))
+
         self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_ATTRIBUTE_PARAM, 1))
         self.normalize = int(parameters.get(self.NORMALIZE_ATTRIBUTE_PARAM, 0))
         self.copy_X = int(parameters.get(self.COPY_X_ATTRIBUTE_PARAM, 1))
@@ -569,19 +572,19 @@ class GeneralizedLinearRegressionOperation(Operation):
         """Generate code."""
 
         code = """
-            {output_data} = {input}.copy()
-            X_train = {input}.values.tolist()
-            y = {input}['{label}'].values.tolist()
+            {output_data} = {input_data}.copy()
+            X_train = {input_data}.values.tolist()
+            y = {input_data}['{label}'].values.tolist()
             {model} = linear_model.LinearRegression(fit_intercept={fit_intercept}, normalize={normalize}, 
                                                     copy_X={copy_X}, n_jobs={n_jobs}).fit(X_train, y)
-            {output_data} = {input}
+            {output_data} = {input_data}
             """.format(output=self.output,
                        fit_intercept=self.fit_intercept,
                        normalize=self.normalize,
                        copy_X=self.copy_X,
                        n_jobs=self.n_jobs,
                        model=self.model,
-                       input=self.named_inputs['input data'],
+                       input_data=self.input_port,
                        label=self.label[0],
                        output_data=self.output)
 

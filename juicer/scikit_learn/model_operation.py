@@ -29,7 +29,10 @@ class ApplyModelOperation(Operation):
         return self.output
 
     def generate_code(self):
+        #import pdb
+        #pdb.set_trace()
         input_data1 = self.named_inputs['input data']
+        input_data1 = 'splitted_1_1'
         output = self.named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
@@ -37,6 +40,7 @@ class ApplyModelOperation(Operation):
             'model', 'model_task_{}'.format(self.order))
 
         code = dedent("""
+            print({in1})
             {out} = {in1}
             X_train = {in1}['{features}'].values.tolist()
             {out}['{new_attr}'] = {in2}.predict(X_train).tolist()

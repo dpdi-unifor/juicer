@@ -893,10 +893,10 @@ class SplitOperation(Operation):
         self.seed = self.parameters.get("seed", 'None')
         self.seed = 'None' if self.seed == "" else self.seed
 
-        self.out1 = self.named_outputs.get('splitted data 1',
-                                           'splitted_1_{}'.format(self.order))
-        self.out2 = self.named_outputs.get('splitted data 2',
-                                           'splitted_2_{}'.format(self.order))
+        self.out1 = self.named_outputs.get('split 1',
+                                           'part_1_{}'.format(self.order))
+        self.out2 = self.named_outputs.get('split 2',
+                                           'part_2_{}'.format(self.order))
 
     def get_data_out_names(self, sep=','):
             return ''
@@ -905,8 +905,7 @@ class SplitOperation(Operation):
         return sep.join([self.out1, self.out2])
 
     def generate_code(self):
-        code = """{out1}, {out2} = np.split({input}.sample(frac=1, 
-        random_state={seed}), [int({weights}*len({input}))])
+        code = """{out1}, {out2} = np.split({input}.sample(frac=1, random_state={seed}), [int({weights}*len({input}))])
         """.format(out1=self.out1, out2=self.out2,
                    input=self.named_inputs['input data'],
                    seed=self.seed, weights=self.weights)

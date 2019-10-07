@@ -18,33 +18,36 @@ class ApplyModelOperation(Operation):
             [len(self.named_inputs) == 2, self.contains_results()])
 
         self.new_attribute = parameters.get(self.NEW_ATTRIBUTE_PARAM,
-                                            'new_attribute')
+                                            None)
 
         self.feature = parameters['features'][0]
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
                 _('Model is being used, but at least one input is missing'))
 
+        self.model = self.named_inputs.get('model')
+
     def get_data_out_names(self, sep=','):
-        return self.output
+        return ''
 
     def generate_code(self):
         #import pdb
         #pdb.set_trace()
+        print(self.named_inputs)
         input_data1 = self.named_inputs['input data']
-        input_data1 = 'splitted_1_1'
+        input_data2 = self.named_inputs['model']
+        #input_data1 = 'split 1'
         output = self.named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
-        model = self.named_inputs.get(
-            'model', 'model_task_{}'.format(self.order))
+        #model = self.named_inputs.get(
+         #   'model', 'model_task_{}'.format(self.order))
 
         code = dedent("""
-            print({in1})
             {out} = {in1}
             X_train = {in1}['{features}'].values.tolist()
             {out}['{new_attr}'] = {in2}.predict(X_train).tolist()
-            """.format(out=output, in1=input_data1, in2=model,
+            """.format(out=output, in1=input_data1, in2=self.model,
                        new_attr=self.new_attribute, features=self.feature))
 
         return dedent(code)

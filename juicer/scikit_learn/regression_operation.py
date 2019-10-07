@@ -286,7 +286,8 @@ class LinearRegressionOperation(RegressionOperation):
         code = dedent("""
         {output} = ElasticNet(alpha={alpha}, l1_ratio={elastic}, tol={tol},
                               max_iter={max_iter}, random_state={seed},
-                              normalize={normalize})""".format(
+                              normalize={normalize})   
+        """.format(
                 output=self.output, max_iter=self.max_iter,
                 alpha=self.alpha, elastic=self.elastic,
                 seed=self.seed, tol=self.tol, normalize=self.normalize))
@@ -506,7 +507,7 @@ class GeneralizedLinearRegressionOperation(Operation):
     NORMALIZE_ATTRIBUTE_PARAM = 'normalize'
     COPY_X_ATTRIBUTE_PARAM = 'copy_X'
     N_JOBS_ATTRIBUTE_PARAM = 'n_jobs'
-    LABEL_PARAM = 'label'
+    LABEL_ATTRIBUTE_PARAM = 'label'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         RegressionOperation.__init__(self, parameters,  named_inputs,  named_outputs)
@@ -521,20 +522,19 @@ class GeneralizedLinearRegressionOperation(Operation):
             'model', 'model_{}'.format(self.order))
 
         self.input_port = self.named_inputs.get(
-            'input data', 'in_{}'.format(self.order))
+            'input data', 'input_data_{}'.format(self.order))
 
         self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_ATTRIBUTE_PARAM, 1))
         self.normalize = int(parameters.get(self.NORMALIZE_ATTRIBUTE_PARAM, 0))
         self.copy_X = int(parameters.get(self.COPY_X_ATTRIBUTE_PARAM, 1))
         self.n_jobs = int(parameters.get(self.N_JOBS_ATTRIBUTE_PARAM, 0))
 
-        #self.label = parameters[self.LABEL_PARAM]
-        self.label = parameters['label'][0]
+        self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM, None)
 
-        if not all([self.LABEL_PARAM in parameters]):
+        if not all([self.LABEL_ATTRIBUTE_PARAM in parameters]):
             msg = _("Parameters '{}' must be informed for task {}")
             raise ValueError(msg.format(
-                self.LABEL_PARAM,
+                self.LABEL_ATTRIBUTE_PARAM,
                 self.__class__.__name__))
 
         self.input_treatment()

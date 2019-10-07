@@ -87,6 +87,7 @@ def {{task.operation.slug.replace('-', '_')}}_{{instance.order}}(sklearn_session
     {{out}} = parent_result['{{port_name}}']
     {%- endfor %}
     ts_{{parent_instance.output}} = parent_result['time']
+    ts_{{parent_instance.output}} = parent_result['time']
     {% endif %}
     {%- endfor %}
     {% set msg = dict_msgs['lemonade_task_parents'] % instance.parameters.task.id %}

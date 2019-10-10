@@ -286,7 +286,7 @@ class LinearRegressionOperation(RegressionOperation):
         code = dedent("""
         {output} = ElasticNet(alpha={alpha}, l1_ratio={elastic}, tol={tol},
                               max_iter={max_iter}, random_state={seed},
-                              normalize={normalize})   
+                              normalize={normalize})  
         """.format(
                 output=self.output, max_iter=self.max_iter,
                 alpha=self.alpha, elastic=self.elastic,
@@ -501,20 +501,21 @@ class SGDRegressorOperation(RegressionOperation):
 
 
 
-class GeneralizedLinearRegressionOperation(Operation):
+class GeneralizedLinearRegressionOperation(RegressionOperation):
 
     FIT_INTERCEPT_ATTRIBUTE_PARAM = 'fit_intercept'
     NORMALIZE_ATTRIBUTE_PARAM = 'normalize'
     COPY_X_ATTRIBUTE_PARAM = 'copy_X'
     N_JOBS_ATTRIBUTE_PARAM = 'n_jobs'
-    LABEL_ATTRIBUTE_PARAM = 'label'
+    LABEL_ATTRIBUTE_PARAM = 'labels'
+    FEATURES_ATTRIBUTE_PARAM = 'features_atr'
+    ALIAS_ATTRIBUTE_PARAM = 'alias'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         RegressionOperation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = True
-
-        #self.input = self.named_inputs['train input data']
+        self.name = 'regression.GeneralizedLinearRegression'
+        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
 
@@ -528,9 +529,9 @@ class GeneralizedLinearRegressionOperation(Operation):
         self.normalize = int(parameters.get(self.NORMALIZE_ATTRIBUTE_PARAM, 0))
         self.copy_X = int(parameters.get(self.COPY_X_ATTRIBUTE_PARAM, 1))
         self.n_jobs = int(parameters.get(self.N_JOBS_ATTRIBUTE_PARAM, 0))
-
+        self.features_atr = parameters['features_atr']
         self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM, None)
-
+        self.alias = self.parameters.get(self.ALIAS_ATTRIBUTE_PARAM, 'prediction')
         if not all([self.LABEL_ATTRIBUTE_PARAM in parameters]):
             msg = _("Parameters '{}' must be informed for task {}")
             raise ValueError(msg.format(
@@ -568,16 +569,18 @@ class GeneralizedLinearRegressionOperation(Operation):
 
         self.copy_X = True if int(self.copy_X) == 1 else False
 
+
     def generate_code(self):
         """Generate code."""
 
         code = """
             {output_data} = {input_data}.copy()
-            X_train = {input_data}.values.tolist()
+            X_train = {input_data}['{columns}'].values.tolist()
             y = {input_data}['{label}'].values.tolist()
             {model} = linear_model.LinearRegression(fit_intercept={fit_intercept}, normalize={normalize}, 
-                                                    copy_X={copy_X}, n_jobs={n_jobs}).fit(X_train, y)
-            {output_data} = {input_data}
+                                                    copy_X={copy_X}, n_jobs={n_jobs})                            
+            {model}.fit(X_train, y)                                      
+            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()           
             """.format(output=self.output,
                        fit_intercept=self.fit_intercept,
                        normalize=self.normalize,
@@ -586,6 +589,8 @@ class GeneralizedLinearRegressionOperation(Operation):
                        model=self.model,
                        input_data=self.input_port,
                        label=self.label[0],
-                       output_data=self.output)
+                       output_data=self.output,
+                       prediction=self.alias,
+                       columns=self.features_atr)
 
         return dedent(code)

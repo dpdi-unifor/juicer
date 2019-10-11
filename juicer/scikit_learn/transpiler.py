@@ -111,7 +111,7 @@ class ScikitLearnTranspiler(Transpiler):
             'agglomerative-clustering':
                 clustering.AgglomerativeClusteringOperation,
             'dbscan-clustering': clustering.DBSCANClusteringOperation,
-            'gaussian-mixture-clustering':
+            'gaussian-mixture-clustering-model':
                 clustering.GaussianMixtureClusteringOperation,
             'k-means-clustering-model': clustering.KMeansClusteringOperation,
             'lda-clustering': clustering.LdaClusteringOperation,

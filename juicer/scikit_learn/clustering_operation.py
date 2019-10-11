@@ -149,9 +149,10 @@ class DBSCANClusteringOperation(Operation):
         if self.has_code:
             self.output = named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
-            self.eps = parameters.get(
-                    self.EPS_PARAM, 0.5) or 0.5
-            self.min_samples = parameters.get(self.MIN_SAMPLES_PARAM, 5) or 5
+            self.eps = float(parameters.get(self.EPS_PARAM, 0.5) or 0.5)
+            self.min_samples = int(parameters.get(self.MIN_SAMPLES_PARAM, 5) or 5)
+
+            #self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 1000) or 1000)
 
             if self.FEATURES_PARAM in parameters:
                 self.features = parameters.get(self.FEATURES_PARAM)[0]
@@ -200,12 +201,12 @@ class GaussianMixtureClusteringOperation(Operation):
         if self.has_code:
             self.output = named_outputs.get(
                     'algorithm', 'clustering_algorithm_{}'.format(self.order))
-            self.number_of_clusters = parameters.get(
-                    self.N_CLUSTERS_PARAM, 1) or 1
-            self.max_iterations = parameters.get(self.MAX_ITER_PARAM,
-                                                 100) or 100
-            self.tolerance = parameters.get(self.TOLERANCE_PARAM,
-                                            0.001) or 0.001
+            self.number_of_clusters = int(parameters.get(
+                    self.N_CLUSTERS_PARAM, 1) or 1)
+            self.max_iterations = int(parameters.get(self.MAX_ITER_PARAM,
+                                                 100) or 100)
+            self.tolerance = float(parameters.get(self.TOLERANCE_PARAM,
+                                            0.001) or 0.001)
             self.tolerance = abs(float(self.tolerance))
 
             vals = [self.number_of_clusters, self.max_iterations]

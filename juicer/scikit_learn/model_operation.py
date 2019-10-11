@@ -43,7 +43,7 @@ class ApplyModelOperation(Operation):
 
         code = dedent("""
             {out} = {in1}
-            X_train = {in1}['{features}'].values.tolist()
+            X_train = {in1}[{features}].values.tolist()
             {out}['{new_attr}'] = {model}.predict(X_train).tolist()
             """.format(out=output, in1=input_data1, model=model,
                        new_attr=self.new_attribute, features=self.feature))

@@ -530,6 +530,8 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
         self.copy_X = int(parameters.get(self.COPY_X_ATTRIBUTE_PARAM, 1))
         self.n_jobs = int(parameters.get(self.N_JOBS_ATTRIBUTE_PARAM, 0))
         self.features_atr = parameters['features_atr']
+        #import pdb
+        #pdb.set_trace()
         self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM, None)
         self.alias = self.parameters.get(self.ALIAS_ATTRIBUTE_PARAM, 'prediction')
         if not all([self.LABEL_ATTRIBUTE_PARAM in parameters]):
@@ -575,12 +577,15 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
 
         code = """
             {output_data} = {input_data}.copy()
-            X_train = {input_data}['{columns}'].values.tolist()
-            y = {input_data}['{label}'].values.tolist()
+            print(type({input_data}))
+            X_train = {input_data}[{columns}].values.tolist()
+            print(X_train)
+            #print(len(X_train))
+            y = {input_data}[{label}].values.tolist()
             {model} = linear_model.LinearRegression(fit_intercept={fit_intercept}, normalize={normalize}, 
-                                                    copy_X={copy_X}, n_jobs={n_jobs})                            
-            {model}.fit(X_train, y)                                      
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()           
+                                                    copy_X={copy_X}, n_jobs={n_jobs})
+            {model}.fit(X_train, y)          
+            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
             """.format(output=self.output,
                        fit_intercept=self.fit_intercept,
                        normalize=self.normalize,
@@ -588,7 +593,7 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
                        n_jobs=self.n_jobs,
                        model=self.model,
                        input_data=self.input_port,
-                       label=self.label[0],
+                       label=self.label,
                        output_data=self.output,
                        prediction=self.alias,
                        columns=self.features_atr)

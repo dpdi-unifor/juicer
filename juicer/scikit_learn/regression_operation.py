@@ -217,24 +217,70 @@ class IsotonicRegressionOperation(RegressionOperation):
         Only univariate (single feature) algorithm supported
     """
     ISOTONIC_PARAM = 'isotonic'
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
+    PREDICTION_PARAM = 'prediction'
+    MAX_ITER_PARAM = 'max_iter'
+    ELASTIC_NET = 'elastic_net'
+    CROSS_VALIDATION_PARAM = 'cross_validation'
+    ATTRIBUTE_CROSS_VALIDATION_PARAM = 'attribute_cross_validation'
+    PERFORM_CROSS_VALIDATION = 'perform_cross_validation'
+
 
     def __init__(self, parameters, named_inputs, named_outputs):
         RegressionOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.IsotonicRegression'
-        self.has_code = len(self.named_outputs) > 0
+        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
+
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+
+        self.input_port = self.named_inputs.get(
+            'train input data', 'input_data_{}'.format(self.order))
 
         if self.has_code:
             self.isotonic = parameters.get(
                 self.ISOTONIC_PARAM, True) in (1, '1', 'true', True)
+            self.features = parameters['features']
+            self.label = parameters.get(self.LABEL_PARAM, None)
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, None))
+            self.elastic_net = decimal(parameters.get(self.ELASTIC_NET_PARAM, None))
+            self.cross_validation = int(parameters.get(self.CROSS_VALIDATION_PARAM, None))
+            self.attribute_cross_validation = parameters.get(self.ATTRIBUTE_CROSS_VALIDATION_PARAM, None)
+            self.peform_cross_validation = int(parameters.get(self.PERFORM_CROSS_VALIDATION_PARAM, None))
+
             self.has_import = \
-                "from sklearn.isotonic import IsotonicRegression\n"
+                """
+                import numpy as np
+                from sklearn.isotonic import IsotonicRegression
+                """
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
 
     def generate_code(self):
         code = dedent("""
-        {output} = IsotonicRegression(increasing={isotonic})
-        """).format(output=self.output, isotonic=self.isotonic)
+        {output_data} = {input_data}.copy()
+        X_train = {input_data}[{columns}].values.tolist()
+        y = {input_data}[{label}].values.tolist()
+        {model} = IsotonicRegression(increasing={isotonic})
+        {model}.fit(X_train, y)          
+            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+        """).format(output_data=self.output,
+                    isotonic=self.isotonic,
+                    output=self.output,
+                    model=self.model,
+                    input_data=self.input_port,
+                    )
         return code
 
 
@@ -246,13 +292,25 @@ class LinearRegressionOperation(RegressionOperation):
     MAX_ITER_PARAM = 'max_iter'
     TOLERANCE_PARAM = 'tol'
     SEED_PARAM = 'seed'
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
+    PREDICTION_PARAM = 'prediction'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         RegressionOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
 
         self.name = 'regression.LinearRegression'
-        self.has_code = len(named_outputs) > 0
+        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
+
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+
+        self.input_port = self.named_inputs.get(
+            'train input data', 'input_data_{}'.format(self.order))
 
         if self.has_code:
             self.alpha = float(parameters.get(self.ALPHA_PARAM, 1.0) or 1.0)
@@ -265,6 +323,9 @@ class LinearRegressionOperation(RegressionOperation):
                     self.TOLERANCE_PARAM, 0.0001) or 0.0001)
             self.tol = abs(float(self.tol))
             self.seed = self.parameters.get(self.SEED_PARAM, 'None') or 'None'
+            self.features = parameters['features']
+            self.label = parameters.get(self.LABEL_PARAM, None)
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
 
             vals = [self.alpha, self.max_iter]
             atts = [self.ALPHA_PARAM, self.MAX_ITER_PARAM]
@@ -280,17 +341,41 @@ class LinearRegressionOperation(RegressionOperation):
                                 self.ELASTIC_NET_PARAM, self.__class__))
 
             self.has_import = \
-                "from sklearn.linear_model import ElasticNet\n"
+                """
+                from sklearn.linear_model import ElasticNet
+                import numpy as np
+                """
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
 
     def generate_code(self):
         code = dedent("""
-        {output} = ElasticNet(alpha={alpha}, l1_ratio={elastic}, tol={tol},
-                              max_iter={max_iter}, random_state={seed},
-                              normalize={normalize})  
-        """.format(
-                output=self.output, max_iter=self.max_iter,
-                alpha=self.alpha, elastic=self.elastic,
-                seed=self.seed, tol=self.tol, normalize=self.normalize))
+        {output_data} = {input_data}.copy()
+        X_train = {input_data}[{columns}].values.tolist()
+        y = {input_data}[{label}].values.tolist()
+        {model} = ElasticNet(alpha={alpha}, l1_ratio={elastic}, tol={tol}, max_iter={max_iter}, random_state={seed},
+                             normalize={normalize})  
+        {model}.fit(X_train, y)
+        {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+        """.format(output_data=self.output,
+                   max_iter=self.max_iter,
+                   alpha=self.alpha,
+                   elastic=self.elastic,
+                   seed=self.seed,
+                   tol=self.tol,
+                   normalize=self.normalize,
+                   input_data=self.input_port,
+                   prediction=self.prediction,
+                   columns=self.features,
+                   label=self.label,
+                   model=self.model,
+                   output=self.output))
+
         return code
 
 
@@ -544,10 +629,8 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
 
         self.has_import = \
             """
-            import matplotlib.pyplot as plt
             import numpy as np
             from sklearn import datasets, linear_model
-            from sklearn.metrics import mean_squared_error, r2_score
             """
 
     @property
@@ -577,10 +660,7 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
 
         code = """
             {output_data} = {input_data}.copy()
-            print(type({input_data}))
             X_train = {input_data}[{columns}].values.tolist()
-            print(X_train)
-            #print(len(X_train))
             y = {input_data}[{label}].values.tolist()
             {model} = linear_model.LinearRegression(fit_intercept={fit_intercept}, normalize={normalize}, 
                                                     copy_X={copy_X}, n_jobs={n_jobs})

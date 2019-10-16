@@ -220,11 +220,9 @@ class IsotonicRegressionOperation(RegressionOperation):
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
     PREDICTION_PARAM = 'prediction'
-    MAX_ITER_PARAM = 'max_iter'
-    ELASTIC_NET = 'elastic_net'
-    CROSS_VALIDATION_PARAM = 'cross_validation'
-    ATTRIBUTE_CROSS_VALIDATION_PARAM = 'attribute_cross_validation'
-    PERFORM_CROSS_VALIDATION = 'perform_cross_validation'
+    Y_MIN_PARAM = 'y_min'
+    Y_MAX_PARAM = 'y_max'
+    OUT_OF_BOUNDS_PARAM = 'out_of_bounds'
 
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -247,12 +245,10 @@ class IsotonicRegressionOperation(RegressionOperation):
                 self.ISOTONIC_PARAM, True) in (1, '1', 'true', True)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
-            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
-            self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, None))
-            self.elastic_net = decimal(parameters.get(self.ELASTIC_NET_PARAM, None))
-            self.cross_validation = int(parameters.get(self.CROSS_VALIDATION_PARAM, None))
-            self.attribute_cross_validation = parameters.get(self.ATTRIBUTE_CROSS_VALIDATION_PARAM, None)
-            self.peform_cross_validation = int(parameters.get(self.PERFORM_CROSS_VALIDATION_PARAM, None))
+            self.prediction = parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.y_min = parameters.get(self.Y_MIN_PARAM, None)
+            self.y_max = parameters.get(self.Y_MIN_PARAM, None)
+            self.out_of_bounds = parameters.get(self.OUT_OF_BOUNDS_PARAM)
 
             self.has_import = \
                 """
@@ -272,15 +268,25 @@ class IsotonicRegressionOperation(RegressionOperation):
         {output_data} = {input_data}.copy()
         X_train = {input_data}[{columns}].values.tolist()
         y = {input_data}[{label}].values.tolist()
-        {model} = IsotonicRegression(increasing={isotonic})
+        if min != None and max != None:
+            {model} = IsotonicRegression(min=float({min}), max=float({max}), increasing={isotonic}, bounds={bounds})
+        elif min != None:
+            {model} = IsotonicRegression(min={min}, None, increasing={isotonic}, bounds={bounds})
+        else:
+            {model} = IsotonicRegression(None, max=float({max}), increasing={isotonic}, bounds={bounds})
         {model}.fit(X_train, y)          
-            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+        {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
         """).format(output_data=self.output,
                     isotonic=self.isotonic,
                     output=self.output,
                     model=self.model,
                     input_data=self.input_port,
-                    )
+                    min=self.y_min,
+                    max=self.y_max,
+                    bounds=self.out_of_bounds,
+                    columns=self.features,
+                    label=self.label,
+                    prediction=self.prediction)
         return code
 
 

@@ -248,11 +248,12 @@ class IsotonicRegressionOperation(RegressionOperation):
             self.prediction = parameters.get(self.PREDICTION_PARAM, 'prediction')
             self.y_min = parameters.get(self.Y_MIN_PARAM, None)
             self.y_max = parameters.get(self.Y_MIN_PARAM, None)
-            self.out_of_bounds = parameters.get(self.OUT_OF_BOUNDS_PARAM)
+            self.out_of_bounds = parameters.get(self.OUT_OF_BOUNDS_PARAM, "nan")
 
             self.has_import = \
                 """
                 import numpy as np
+                import pandas as pd
                 from sklearn.isotonic import IsotonicRegression
                 """
 
@@ -266,14 +267,17 @@ class IsotonicRegressionOperation(RegressionOperation):
     def generate_code(self):
         code = dedent("""
         {output_data} = {input_data}.copy()
-        X_train = {input_data}[{columns}].values.tolist()
-        y = {input_data}[{label}].values.tolist()
-        if min != None and max != None:
-            {model} = IsotonicRegression(min=float({min}), max=float({max}), increasing={isotonic}, bounds={bounds})
-        elif min != None:
-            {model} = IsotonicRegression(min={min}, None, increasing={isotonic}, bounds={bounds})
+        X_train = np.array({input_data}[{columns}].values.tolist()).flatten()        
+        y = np.array({input_data}[{label}].values.tolist()).flatten()
+        if {min} != None and {max} != None:
+            {model} = IsotonicRegression(min=float({min}), max=float({max}), increasing={isotonic}, 
+            out_of_bounds='{bounds}')
+        elif {min} != None:
+            {model} = IsotonicRegression(min={min}, increasing={isotonic}, out_of_bounds='{bounds}')
+        elif {max} != None:
+            {model} = IsotonicRegression(max=float({max}), increasing={isotonic}, out_of_bounds='{bounds}')
         else:
-            {model} = IsotonicRegression(None, max=float({max}), increasing={isotonic}, bounds={bounds})
+            {model} = IsotonicRegression(increasing={isotonic}, out_of_bounds='{bounds}')
         {model}.fit(X_train, y)          
         {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
         """).format(output_data=self.output,
@@ -665,7 +669,7 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
         """Generate code."""
 
         code = """
-            {output_data} = {input_data}.copy()
+            {output_data} = {input_data}.copy()            
             X_train = {input_data}[{columns}].values.tolist()
             y = {input_data}[{label}].values.tolist()
             {model} = linear_model.LinearRegression(fit_intercept={fit_intercept}, normalize={normalize}, 

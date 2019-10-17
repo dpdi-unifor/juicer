@@ -1,6 +1,7 @@
 from textwrap import dedent
 from juicer.operation import Operation
 import string
+import numpy as np
 
 
 class SafeDict(dict):
@@ -15,7 +16,6 @@ class ApplyModelOperation(Operation):
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-
         self.has_code = any(
             [len(self.named_inputs) == 2, self.contains_results()])
 
@@ -26,15 +26,19 @@ class ApplyModelOperation(Operation):
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
                 _('Model is being used, but at least one input is missing'))
+        self.input_data1 = None
+        X_test = None
+        self.treatment()
 
-        #self.model = self.named_inputs.get('model')
+    def treatment(self):
+        self.input_data1 = self.named_inputs['input data']
+        if "isotonic-regression-model" in self.parameters.get("parents_slug", []):
+            X_test = np.array(self.input_data1[self.feature].values.tolist()).flatten()
+        else:
+            X_test = self.input_data1[self.feature].values.tolist()
 
 
     def generate_code(self):
-        #import pdb
-        #pdb.set_trace()
-        input_data1 = self.named_inputs['input data']
-        #input_data1 = 'split 1'
         output = self.named_outputs.get('output data',
                                         'out_task_{}'.format(self.order))
 
@@ -43,10 +47,9 @@ class ApplyModelOperation(Operation):
 
         code = dedent("""
             {out} = {in1}
-            X_train = {in1}[{features}].values.tolist()
-            {out}['{new_attr}'] = {model}.predict(X_train).tolist()
+            {out}['{new_attr}'] = {model}.predict(X_test).tolist()
             """.format(out=output, in1=input_data1, model=model,
-                       new_attr=self.new_attribute, features=self.feature))
+                       new_attr=self.new_attribute, features=self.feature, X_test=self.X_test))
 
         return dedent(code)
 

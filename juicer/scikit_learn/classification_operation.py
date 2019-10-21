@@ -569,15 +569,15 @@ class SvmClassifierOperation(Operation):
                 named_outputs.get('algorithm',
                                   'algorithm_tmp_{}'.format(self.order))
 
-            self.max_iter = parameters.get(self.MAX_ITER_PARAM, -1)
-            self.tol = parameters.get(self.TOLERANCE_PARAM, 0.001) or 0.001
+            self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, -1))
+            self.tol = float(parameters.get(self.TOLERANCE_PARAM, 0.001) or 0.001)
             self.tol = abs(float(self.tol))
             self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
-            self.degree = parameters.get(self.DEGREE_PARAM, 3) or 3
+            self.degree = int(parameters.get(self.DEGREE_PARAM, 3) or 3)
             self.kernel = parameters.get(
                     self.KERNEL_PARAM,
                     self.KERNEL_PARAM_RBF) or self.KERNEL_PARAM_RBF
-            self.c = parameters.get(self.PENALTY_PARAM, 1.0) or 1.0
+            self.c = float(parameters.get(self.PENALTY_PARAM, 1.0) or 1.0)
 
             vals = [self.degree, self.c]
             atts = [self.DEGREE_PARAM, self.PENALTY_PARAM]

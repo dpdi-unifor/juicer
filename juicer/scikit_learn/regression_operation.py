@@ -250,6 +250,8 @@ class IsotonicRegressionOperation(RegressionOperation):
             self.y_max = parameters.get(self.Y_MIN_PARAM, None)
             self.out_of_bounds = parameters.get(self.OUT_OF_BOUNDS_PARAM, "nan")
 
+            self.treatment()
+
             self.has_import = \
                 """
                 import numpy as np
@@ -264,10 +266,16 @@ class IsotonicRegressionOperation(RegressionOperation):
     def get_output_names(self, sep=', '):
         return sep.join([self.output, self.model])
 
+    def treatment(self):
+        if len(self.features) >= 2:
+            raise ValueError(
+                _("Parameter '{}' must be x<2 for task {}").format(
+                    self.FEATURES_PARAM, self.__class__))
+
     def generate_code(self):
         code = dedent("""
-        {output_data} = {input_data}.copy()
-        X_train = np.array({input_data}[{columns}].values.tolist()).flatten()        
+        {output_data} = {input_data}.copy()        
+        X_train = np.array({input_data}[{columns}].values.tolist()).flatten()    
         y = np.array({input_data}[{label}].values.tolist()).flatten()
         if {min} != None and {max} != None:
             {model} = IsotonicRegression(min=float({min}), max=float({max}), increasing={isotonic}, 
@@ -667,7 +675,6 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
 
     def generate_code(self):
         """Generate code."""
-
         code = """
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{columns}].values.tolist()

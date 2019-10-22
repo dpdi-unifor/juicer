@@ -42,7 +42,7 @@ import traceback
 def sklearn_logging(msg):
     print(msg)
 
-executor = ThreadPoolExecutor(max_workers={{instances|length}})
+executor = ThreadPoolExecutor(max_workers=3*{{instances|length}})
 task_futures = {}
 
 {%- for instance in instances %}

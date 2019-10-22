@@ -37,8 +37,10 @@ class ApplyModelOperation(Operation):
 
         code = dedent("""
             {out} = {in1}
-            X_test = {in1}[{features}].values.tolist()
+            X_test = np.array({in1}[{features}].values.tolist()).flatten()
             {out}['{new_attr}'] = {model}.predict(X_test).tolist()
+            # T = {model}.predict(X_test).tolist()
+            # {out} = pd.DataFrame(T, columns = ['{new_attr}'])
             """.format(out=output, in1=self.input_data1, model=model,
                        new_attr=self.new_attribute, features=self.feature))
 

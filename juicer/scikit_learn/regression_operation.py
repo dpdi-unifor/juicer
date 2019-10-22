@@ -275,7 +275,7 @@ class IsotonicRegressionOperation(RegressionOperation):
     def generate_code(self):
         code = dedent("""
         {output_data} = {input_data}.copy()        
-        X_train = np.array({input_data}[{columns}].values.tolist()).flatten()    
+        X_train = np.array({input_data}[{columns}].values.tolist()).flatten()
         y = np.array({input_data}[{label}].values.tolist()).flatten()
         if {min} != None and {max} != None:
             {model} = IsotonicRegression(min=float({min}), max=float({max}), increasing={isotonic}, 

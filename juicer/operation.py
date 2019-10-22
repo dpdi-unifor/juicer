@@ -146,7 +146,7 @@ class Operation(object):
         consider_degree = self.out_degree == 0 or ignore_out_degree
         info_or_data = self.contains_results()
         return (((self.has_code or ignore_has_code) and is_satisfied and
-                 consider_degree) or info_or_data)
+                 consider_degree)) #  or info_or_data)
 
     # noinspection PyMethodMayBeStatic
     def attribute_traceability(self):

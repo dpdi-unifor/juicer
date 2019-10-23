@@ -37,12 +37,13 @@ class ApplyModelOperation(Operation):
 
         code = dedent("""
             {out} = {in1}
-            X_test = np.array({in1}[{features}].values.tolist()).flatten()
+            if 'isotonic-regression-model' in {parent}:
+                 X_test = np.array({in1}[{features}].values.tolist()).flatten()
+            else:
+                X_test = np.array({in1}[{features}].values.tolist())
             {out}['{new_attr}'] = {model}.predict(X_test).tolist()
-            # T = {model}.predict(X_test).tolist()
-            # {out} = pd.DataFrame(T, columns = ['{new_attr}'])
             """.format(out=output, in1=self.input_data1, model=model,
-                       new_attr=self.new_attribute, features=self.feature))
+                       new_attr=self.new_attribute, features=self.feature, parent=self.parameters['parents_slug']))
 
         return dedent(code)
 
@@ -452,7 +453,7 @@ class EvaluateModelOperation(Operation):
                 rows = []
                 headers = {params_table_headers}
                 params = {model}.get_params()
-                print({model})
+                #print({model})
                 for p in params:
                     rows.append([p, params[p]])
                     

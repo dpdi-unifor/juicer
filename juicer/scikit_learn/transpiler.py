@@ -118,7 +118,7 @@ class ScikitLearnTranspiler(Transpiler):
 
             # ------ Classification  -----#
             'classification-model': classifiers.ClassificationModelOperation,
-            'decision-tree-classifier':
+            'decision-tree-classifier-model':
                 classifiers.DecisionTreeClassifierOperation,
             'gbt-classifier-model': classifiers.GBTClassifierOperation,
             'knn-classifier-model': classifiers.KNNClassifierOperation,

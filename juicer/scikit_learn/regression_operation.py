@@ -487,30 +487,55 @@ class RandomForestRegressorOperation(RegressionOperation):
     MAX_DEPTH_PARAM = 'max_depth'
     MIN_SPLIT_PARAM = 'min_samples_split'
     MIN_LEAF_PARAM = 'min_samples_leaf'
-    SEED_PARAM = 'seed'
+    CRITERION_PARAM = 'criterion'
+    MIN_WEIGHT_FRACTION_LEAF_PARAM = 'min_weight_fraction_leaf'
+    MAX_LEAF_NODES_PARAM = 'max_leaf_nodes'
+    MIN_IMPURITY_DECREASE_PARAM = 'min_impurity_decrease'
+    BOOTSTRAP_PARAM = 'bootstrap'
+    OOB_SCORE_PARAM = 'oob_score'
+    N_JOBS_PARAM = 'n_jobs'
+    RANDOM_STATE_PARAM = 'random_state'
+    VERBOSE_PARAM = 'verbose'
+    WARM_START_PARAM = 'warm_start'
+    PREDICTION_PARAM = 'prediction'
+    LABEL_PARAM = 'labels'
+    FEATURES_PARAM = 'features'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         RegressionOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.RandomForestRegressor'
-        self.has_code = len(self.named_outputs) > 0
+        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
+
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+
+        self.input_port = self.named_inputs.get(
+            'train input data', 'input_data_{}'.format(self.order))
 
         if self.has_code:
-            self.n_estimators = parameters.get(
-                    self.N_ESTIMATORS_PARAM, 10) or 10
-            self.max_features = parameters.get(
-                    self.MAX_FEATURES_PARAM, 'auto') or 'auto'
-            self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, 3) or 3
-            self.min_samples_split = parameters.get(
-                    self.MIN_SPLIT_PARAM, 2) or 2
-            self.min_samples_leaf = parameters.get(
-                    self.MIN_LEAF_PARAM, 1) or 1
-            self.seed = parameters.get(self.SEED_PARAM, 'None')
+            self.n_estimators = int(parameters.get(self.N_ESTIMATORS_PARAM, 100) or 100)
+            self.max_features = parameters.get(self.MAX_FEATURES_PARAM, 'auto') or 'auto'
+            self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, None)
+            self.min_samples_split = int(parameters.get(self.MIN_SPLIT_PARAM, 2) or 2)
+            self.min_samples_leaf = int(parameters.get(self.MIN_LEAF_PARAM, 1) or 1)
+            self.criterion = parameters.get(self.CRITERION_PARAM, 'mse') or 'mse'
+            self.min_weight_fraction_leaf = int(parameters.get(self.MIN_WEIGHT_FRACTION_LEAF_PARAM, 0) or 0)
+            self.max_leaf_nodes = parameters.get(self.MAX_LEAF_NODES_PARAM, None)
+            self.min_impurity_decrease = float(parameters.get(self.MIN_IMPURITY_DECREASE_PARAM, 0) or 0)
+            self.bootstrap = int(parameters.get(self.BOOTSTRAP_PARAM, 1) or 1)
+            self.oob_score = int(parameters.get(self.OOB_SCORE_PARAM, 1) or 1)
+            self.n_jobs = int(parameters.get(self.N_JOBS_PARAM, 0) or 0)
+            self.random_state = parameters.get(self.RANDOM_STATE_PARAM, None)
+            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0) or 0)
+            self.warm_start = int(parameters.get(self.WARM_START_PARAM, 0) or 0)
 
-            vals = [self.max_depth, self.n_estimators, self.min_samples_split,
+            vals = [self.n_estimators, self.min_samples_split,
                     self.min_samples_leaf]
-            atts = [self.MAX_DEPTH_PARAM, self.N_ESTIMATORS_PARAM,
+            atts = [self.N_ESTIMATORS_PARAM,
                     self.MIN_SPLIT_PARAM, self.MIN_LEAF_PARAM]
             for var, att in zip(vals, atts):
                 if var <= 0:
@@ -518,24 +543,125 @@ class RandomForestRegressorOperation(RegressionOperation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
+            self.input_treatment()
+
             self.has_import = \
-                "from sklearn.ensemble import RandomForestRegressor\n"
+                """
+                import numpy as np
+                import pandas as pd
+                from sklearn.ensemble import RandomForestRegressor
+                from sklearn.datasets import make_regression
+                """
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
+    def input_treatment(self):
+        if self.n_jobs < -1:
+            raise ValueError(
+                _("Parameter '{}' must be x>=-1 for task {}").format(
+                    self.N_JOBS_PARAM, self.__class__))
+
+        self.n_jobs = 1 if int(self.n_jobs) == 0 else int(self.n_jobs)
+
+        self.bootstrap = True if int(self.bootstrap) == 1 else False
+
+        self.oob_score = True if int(self.oob_score) == 1 else False
+
+        self.warm_start = True if int(self.warm_start) == 1 else False
 
     def generate_code(self):
         code = dedent("""
-            {output} = RandomForestRegressor(n_estimators={n_estimators},
-                max_features='{max_features}',
-                max_depth={max_depth},
-                min_samples_split={min_samples_split},
-                min_samples_leaf={min_samples_leaf},
-                random_state={seed})
-            """).format(output=self.output,
-                        n_estimators=self.n_estimators,
+            {output_data} = {input_data}.copy()            
+            X_train = {input_data}[{features}].values.tolist()
+            y = {input_data}[{prediction}].values.tolist()
+            if {max_depth} != None and {max_leaf_nodes} != None and {random_state} != None:
+                {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
+                                                 max_depth=int({max_depth}), min_samples_split={min_samples_split}, 
+                                                 min_samples_leaf={min_samples_leaf}, random_state=int({random_state}),
+                                                 n_jobs={n_jobs}, criterion='{criterion}', 
+                                                 min_weight_fraction_leaf={min_weight_fraction_leaf},
+                                                 max_leaf_nodes=int({max_leaf_nodes}), 
+                                                 min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
+                                                 oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
+            elif {max_depth} != None and {max_leaf_nodes} != None:
+                {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
+                                                 max_depth=int({max_depth}), min_samples_split={min_samples_split}, 
+                                                 min_samples_leaf={min_samples_leaf},
+                                                 n_jobs={n_jobs}, criterion='{criterion}', 
+                                                 min_weight_fraction_leaf={min_weight_fraction_leaf},
+                                                 max_leaf_nodes=int({max_leaf_nodes}), 
+                                                 min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
+                                                 oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
+            elif {max_leaf_nodes} != None and {random_state} != None:
+                {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
+                                                 min_samples_split={min_samples_split}, 
+                                                 min_samples_leaf={min_samples_leaf}, random_state=int({random_state}),
+                                                 n_jobs={n_jobs}, criterion='{criterion}', 
+                                                 min_weight_fraction_leaf={min_weight_fraction_leaf},
+                                                 max_leaf_nodes=int({max_leaf_nodes}), 
+                                                 min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
+                                                 oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
+            elif {max_depth} != None and {random_state} != None:
+                {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
+                                                 max_depth=int({max_depth}), min_samples_split={min_samples_split}, 
+                                                 min_samples_leaf={min_samples_leaf}, random_state=int({random_state}),
+                                                 n_jobs={n_jobs}, criterion='{criterion}', 
+                                                 min_weight_fraction_leaf={min_weight_fraction_leaf},
+                                                 min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
+                                                 oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
+            elif {max_depth} != None:
+               {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
+                                                 max_depth=int({max_depth}), min_samples_split={min_samples_split}, 
+                                                 min_samples_leaf={min_samples_leaf}, n_jobs={n_jobs}, 
+                                                 criterion='{criterion}', 
+                                                 min_weight_fraction_leaf={min_weight_fraction_leaf},
+                                                 min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
+                                                 oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
+            elif {max_leaf_nodes} != None:
+                {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
+                                                 min_samples_split={min_samples_split}, 
+                                                 min_samples_leaf={min_samples_leaf},
+                                                 n_jobs={n_jobs}, criterion='{criterion}', 
+                                                 min_weight_fraction_leaf={min_weight_fraction_leaf},
+                                                 max_leaf_nodes=int({max_leaf_nodes}), 
+                                                 min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
+                                                 oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
+            elif {random_state} != None:
+                {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
+                                                 min_samples_split={min_samples_split}, 
+                                                 min_samples_leaf={min_samples_leaf}, random_state=int({random_state}),
+                                                 n_jobs={n_jobs}, criterion='{criterion}', 
+                                                 min_weight_fraction_leaf={min_weight_fraction_leaf},
+                                                 min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
+                                                 oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
+             
+            {model}.fit(X_train, y)          
+            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+            """).format(n_estimators=self.n_estimators,
                         max_features=self.max_features,
                         max_depth=self.max_depth,
                         min_samples_split=self.min_samples_split,
                         min_samples_leaf=self.min_samples_leaf,
-                        seed=self.seed)
+                        random_state=self.random_state,
+                        model=self.model,
+                        n_jobs=self.n_jobs,
+                        input_data=self.input_port,
+                        output_data=self.output,
+                        prediction=self.prediction,
+                        criterion=self.criterion,
+                        min_weight_fraction_leaf=self.min_weight_fraction_leaf,
+                        max_leaf_nodes=self.max_leaf_nodes,
+                        min_impurity_decrease=self.min_impurity_decrease,
+                        bootstrap=self.bootstrap,
+                        oob_score=self.oob_score,
+                        verbose=self.verbose,
+                        warm_start=self.warm_start,
+                        features=self.features)
 
         return code
 
@@ -602,8 +728,6 @@ class SGDRegressorOperation(RegressionOperation):
         return code
 
 
-
-
 class GeneralizedLinearRegressionOperation(RegressionOperation):
 
     FIT_INTERCEPT_ATTRIBUTE_PARAM = 'fit_intercept'
@@ -633,8 +757,6 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
         self.copy_X = int(parameters.get(self.COPY_X_ATTRIBUTE_PARAM, 1))
         self.n_jobs = int(parameters.get(self.N_JOBS_ATTRIBUTE_PARAM, 0))
         self.features_atr = parameters['features_atr']
-        #import pdb
-        #pdb.set_trace()
         self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM, None)
         self.alias = self.parameters.get(self.ALIAS_ATTRIBUTE_PARAM, 'prediction')
         if not all([self.LABEL_ATTRIBUTE_PARAM in parameters]):
@@ -672,7 +794,6 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
 
         self.copy_X = True if int(self.copy_X) == 1 else False
 
-
     def generate_code(self):
         """Generate code."""
         code = """
@@ -683,8 +804,7 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
                                                     copy_X={copy_X}, n_jobs={n_jobs})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(output=self.output,
-                       fit_intercept=self.fit_intercept,
+            """.format(fit_intercept=self.fit_intercept,
                        normalize=self.normalize,
                        copy_X=self.copy_X,
                        n_jobs=self.n_jobs,

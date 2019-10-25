@@ -498,7 +498,7 @@ class RandomForestRegressorOperation(RegressionOperation):
     VERBOSE_PARAM = 'verbose'
     WARM_START_PARAM = 'warm_start'
     PREDICTION_PARAM = 'prediction'
-    LABEL_PARAM = 'labels'
+    LABEL_PARAM = 'label'
     FEATURES_PARAM = 'features'
 
     def __init__(self, parameters, named_inputs, named_outputs):
@@ -532,6 +532,9 @@ class RandomForestRegressorOperation(RegressionOperation):
             self.random_state = parameters.get(self.RANDOM_STATE_PARAM, None)
             self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0) or 0)
             self.warm_start = int(parameters.get(self.WARM_START_PARAM, 0) or 0)
+            self.features = parameters['features']
+            self.label = parameters.get(self.LABEL_PARAM, None)
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
 
             vals = [self.n_estimators, self.min_samples_split,
                     self.min_samples_leaf]
@@ -578,20 +581,11 @@ class RandomForestRegressorOperation(RegressionOperation):
         code = dedent("""
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{features}].values.tolist()
-            y = {input_data}[{prediction}].values.tolist()
-            if {max_depth} != None and {max_leaf_nodes} != None and {random_state} != None:
+            y = {input_data}[{label}].values.tolist()
+            if {max_depth} != None and {max_leaf_nodes} != None:
                 {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
                                                  max_depth=int({max_depth}), min_samples_split={min_samples_split}, 
-                                                 min_samples_leaf={min_samples_leaf}, random_state=int({random_state}),
-                                                 n_jobs={n_jobs}, criterion='{criterion}', 
-                                                 min_weight_fraction_leaf={min_weight_fraction_leaf},
-                                                 max_leaf_nodes=int({max_leaf_nodes}), 
-                                                 min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
-                                                 oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
-            elif {max_depth} != None and {max_leaf_nodes} != None:
-                {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
-                                                 max_depth=int({max_depth}), min_samples_split={min_samples_split}, 
-                                                 min_samples_leaf={min_samples_leaf},
+                                                 min_samples_leaf={min_samples_leaf}, random_state={random_state},
                                                  n_jobs={n_jobs}, criterion='{criterion}', 
                                                  min_weight_fraction_leaf={min_weight_fraction_leaf},
                                                  max_leaf_nodes=int({max_leaf_nodes}), 
@@ -599,7 +593,7 @@ class RandomForestRegressorOperation(RegressionOperation):
                                                  oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
             elif {max_leaf_nodes} != None and {random_state} != None:
                 {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
-                                                 min_samples_split={min_samples_split}, 
+                                                 max_depth={max_depth}, min_samples_split={min_samples_split}, 
                                                  min_samples_leaf={min_samples_leaf}, random_state=int({random_state}),
                                                  n_jobs={n_jobs}, criterion='{criterion}', 
                                                  min_weight_fraction_leaf={min_weight_fraction_leaf},
@@ -612,20 +606,22 @@ class RandomForestRegressorOperation(RegressionOperation):
                                                  min_samples_leaf={min_samples_leaf}, random_state=int({random_state}),
                                                  n_jobs={n_jobs}, criterion='{criterion}', 
                                                  min_weight_fraction_leaf={min_weight_fraction_leaf},
+                                                 max_leaf_nodes={max_leaf_nodes}, 
                                                  min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
                                                  oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
             elif {max_depth} != None:
                {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
                                                  max_depth=int({max_depth}), min_samples_split={min_samples_split}, 
-                                                 min_samples_leaf={min_samples_leaf}, n_jobs={n_jobs}, 
-                                                 criterion='{criterion}', 
+                                                 min_samples_leaf={min_samples_leaf}, random_state={random_state},
+                                                 n_jobs={n_jobs}, criterion='{criterion}', 
                                                  min_weight_fraction_leaf={min_weight_fraction_leaf},
+                                                 max_leaf_nodes={max_leaf_nodes}, 
                                                  min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
                                                  oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
             elif {max_leaf_nodes} != None:
                 {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
-                                                 min_samples_split={min_samples_split}, 
-                                                 min_samples_leaf={min_samples_leaf},
+                                                 max_depth={max_depth}, min_samples_split={min_samples_split}, 
+                                                 min_samples_leaf={min_samples_leaf}, random_state={random_state},
                                                  n_jobs={n_jobs}, criterion='{criterion}', 
                                                  min_weight_fraction_leaf={min_weight_fraction_leaf},
                                                  max_leaf_nodes=int({max_leaf_nodes}), 
@@ -633,13 +629,31 @@ class RandomForestRegressorOperation(RegressionOperation):
                                                  oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
             elif {random_state} != None:
                 {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
-                                                 min_samples_split={min_samples_split}, 
+                                                 max_depth={max_depth}, min_samples_split={min_samples_split}, 
                                                  min_samples_leaf={min_samples_leaf}, random_state=int({random_state}),
                                                  n_jobs={n_jobs}, criterion='{criterion}', 
                                                  min_weight_fraction_leaf={min_weight_fraction_leaf},
+                                                 max_leaf_nodes={max_leaf_nodes}, 
                                                  min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
                                                  oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
-             
+            elif {max_depth} != None and {max_leaf_nodes} != None and {random_state} != None:
+                {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
+                                            max_depth=int({max_depth}), min_samples_split={min_samples_split}, 
+                                            min_samples_leaf={min_samples_leaf}, random_state=int({random_state}),
+                                            n_jobs={n_jobs}, criterion='{criterion}', 
+                                            min_weight_fraction_leaf={min_weight_fraction_leaf},
+                                            max_leaf_nodes=int({max_leaf_nodes}), 
+                                            min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
+                                            oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
+            else:
+                {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
+                                            max_depth={max_depth}, min_samples_split={min_samples_split}, 
+                                            min_samples_leaf={min_samples_leaf}, random_state={random_state},
+                                            n_jobs={n_jobs}, criterion='{criterion}', 
+                                            min_weight_fraction_leaf={min_weight_fraction_leaf},
+                                            max_leaf_nodes={max_leaf_nodes}, 
+                                            min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
+                                            oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
             """).format(n_estimators=self.n_estimators,
@@ -661,7 +675,8 @@ class RandomForestRegressorOperation(RegressionOperation):
                         oob_score=self.oob_score,
                         verbose=self.verbose,
                         warm_start=self.warm_start,
-                        features=self.features)
+                        features=self.features,
+                        label=self.label)
 
         return code
 

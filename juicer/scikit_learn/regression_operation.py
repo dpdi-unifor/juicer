@@ -110,27 +110,65 @@ class GradientBoostingRegressorOperation(RegressionOperation):
     MAX_DEPTH_PARAM = 'max_depth'
     MIN_SPLIT_PARAM = 'min_samples_split'
     MIN_LEAF_PARAM = 'min_samples_leaf'
-    SEED_PARAM = 'seed'
+    MAX_FEATURES_PARAM = 'max_features'
+    CRITERION_PARAM = 'criterion'
+    MIN_WEIGHT_FRACTION_LEAF_PARAM = 'min_weight_fraction_leaf'
+    MAX_LEAF_NODES_PARAM = 'max_leaf_nodes'
+    MIN_IMPURITY_DECREASE_PARAM = 'min_impurity_decrease'
+    RANDOM_STATE_PARAM = 'random_state'
+    VERBOSE_PARAM = 'verbose'
+    WARM_START_PARAM = 'warm_start'
+    PREDICTION_PARAM = 'prediction'
+    LABEL_PARAM = 'label'
+    FEATURES_PARAM = 'features'
+    LOSS_PARAM = 'loss'
+    SUBSAMPLE_PARAM = 'subsample'
+    ALPHA_PARAM = 'alpha'
+    PRESORT_PARAM = 'presort'
+    VALIDATION_FRACTION_PARAM = 'validation_fraction'
+    N_ITER_NO_CHANGE_PARAM = 'n_iter_no_change'
+    TOL_PARAM = 'tol'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         RegressionOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
 
         self.name = 'regression.GradientBoostingRegressor'
-        self.has_code = len(named_outputs) > 0
+        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
+
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+
+        self.input_port = self.named_inputs.get(
+            'input data', 'input_data_{}'.format(self.order))
 
         if self.has_code:
-            self.learning_rate = parameters.get(
-                    self.LEARNING_RATE_PARAM, 0.1) or 0.1
-            self.n_estimators = parameters.get(
-                    self.N_ESTIMATORS_PARAM, 100) or 100
-            self.max_depth = parameters.get(
-                    self.MAX_DEPTH_PARAM, 3) or 3
-            self.min_samples_split = parameters.get(
-                    self.MIN_SPLIT_PARAM, 2) or 2
-            self.min_samples_leaf = parameters.get(
-                    self.MIN_LEAF_PARAM, 1) or 1
-            self.seed = parameters.get(self.SEED_PARAM, 'None')
+            self.learning_rate = float(parameters.get(self.LEARNING_RATE_PARAM, 0.1) or 0.1)
+            self.n_estimators = int(parameters.get(self.N_ESTIMATORS_PARAM, 100) or 100)
+            self.max_depth = int(parameters.get(self.MAX_DEPTH_PARAM, 3) or 3)
+            self.min_samples_split = int(parameters.get(self.MIN_SPLIT_PARAM, 2) or 2)
+            self.min_samples_leaf = int(parameters.get(self.MIN_LEAF_PARAM, 1) or 1)
+            self.max_features = parameters.get(self.MAX_FEATURES_PARAM, None) or None #mudei
+            self.criterion = parameters.get(self.CRITERION_PARAM, 'friedman_mse') or 'friedman_mse' #mudei
+            self.min_weight_fraction_leaf = float(parameters.get(self.MIN_WEIGHT_FRACTION_LEAF_PARAM, 0) or 0)
+            self.max_leaf_nodes = parameters.get(self.MAX_LEAF_NODES_PARAM, None)
+            self.min_impurity_decrease = float(parameters.get(self.MIN_IMPURITY_DECREASE_PARAM, 0) or 0)
+            self.random_state = parameters.get(self.RANDOM_STATE_PARAM, None)
+            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0) or 0)
+            self.warm_start = int(parameters.get(self.WARM_START_PARAM, 0) or 0)
+            self.features = parameters['features']
+            self.label = parameters.get(self.LABEL_PARAM, None)
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.subsample = float(parameters.get(self.SUBSAMPLE_PARAM, 1.0) or 1.0)
+            self.alpha = float(parameters.get(self.ALPHA_PARAM, 0.9) or 0.9)
+            self.presort = int(parameters.get(self.PRESORT_PARAM, 0) or 0)
+            self.validation_fraction = float(parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1) or 0.1)
+            self.n_iter_no_change = int(parameters.get(self.N_ITER_NO_CHANGE_PARAM, None) or None)
+            self.tol = float(parameters.get(self.TOL_PARAM, 1e-4) or 1e-4)
+            self.loss = parameters.get(self.LOSS_PARAM, 'ls') or 'ls'
 
             vals = [self.learning_rate, self.n_estimators,
                     self.min_samples_split, self.min_samples_leaf]
@@ -142,18 +180,62 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
             self.has_import = \
-                "from sklearn.ensemble import GradientBoostingRegressor\n"
+                """
+                import numpy as np
+                from sklearn.ensemble import GradientBoostingRegressor
+                """
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
 
     def generate_code(self):
         code = dedent("""
-        {output} = GradientBoostingRegressor(learning_rate={learning_rate},
-        n_estimators={n_estimators}, max_depth={max_depth}, 
-        min_samples_split={min_samples_split}, 
-        min_samples_leaf={min_samples_leaf}, random_state={seed})""".format(
-                output=self.output, learning_rate=self.learning_rate,
-                n_estimators=self.n_estimators, max_depth=self.max_depth,
-                seed=self.seed, min_samples_split=self.min_samples_split,
-                min_samples_leaf=self.min_samples_leaf))
+            {output_data} = {input_data}.copy()            
+            X_train = {input_data}[{features}].values.tolist()
+            y = {input_data}[{label}].values.tolist()
+            {model} = GradientBoostingRegressor(loss=’{loss}’, learning_rate={learning_rate}, 
+                                                n_estimators={n_estimators}, subsample={subsample}, 
+                                                criterion=’{criterion}’, min_samples_split={min_samples_split}, 
+                                                min_samples_leaf={min_samples_leaf}, 
+                                                min_weight_fraction_leaf={min_weight_fraction_leaf}, 
+                                                max_depth={max_depth}, min_impurity_decrease={min_impurity_decrease}, 
+                                                random_state={random_state}, max_features={max_features}, 
+                                                alpha={alpha}, verbose={verbose}, max_leaf_nodes={max_leaf_nodes}, 
+                                                warm_start={warm_start}, presort=’{presort}’, 
+                                                validation_fraction={validation_fraction}, 
+                                                n_iter_no_change={n_iter_no_change}, tol={tol})
+            {model}.fit(X_train, y)          
+            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+            """.format(output_data=self.output,
+                       learning_rate=self.learning_rate,
+                       n_estimators=self.n_estimators,
+                       max_depth=self.max_depth,
+                       min_samples_split=self.min_samples_split,
+                       min_samples_leaf=self.min_samples_leaf,
+                       model=self.model,
+                       input_data=self.input_port,
+                       loss=self.loss,
+                       subsample=self.subsample,
+                       criterion=self.criterion,
+                       min_weight_fraction_leaf=self.min_weight_fraction_leaf,
+                       min_impurity_decrease=self.min_impurity_decrease,
+                       random_state=self.random_state,
+                       max_features=self.max_features,
+                       alpha=self.alpha,
+                       verbose=self.verbose,
+                       max_leaf_nodes=self.max_leaf_nodes,
+                       warm_start=self.warm_start,
+                       presort=self.presort,
+                       validation_fraction=self.validation_fraction,
+                       n_iter_no_change=self.n_iter_no_change,
+                       tol=self.tol,
+                       prediction=self.prediction,
+                       features=self.features,
+                       label=self.label))
         return code
 
 
@@ -223,7 +305,6 @@ class IsotonicRegressionOperation(RegressionOperation):
     Y_MIN_PARAM = 'y_min'
     Y_MAX_PARAM = 'y_max'
     OUT_OF_BOUNDS_PARAM = 'out_of_bounds'
-
 
     def __init__(self, parameters, named_inputs, named_outputs):
         RegressionOperation.__init__(self, parameters, named_inputs,

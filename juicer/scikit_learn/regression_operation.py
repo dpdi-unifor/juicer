@@ -151,8 +151,8 @@ class GradientBoostingRegressorOperation(RegressionOperation):
             self.max_depth = int(parameters.get(self.MAX_DEPTH_PARAM, 3) or 3)
             self.min_samples_split = int(parameters.get(self.MIN_SPLIT_PARAM, 2) or 2)
             self.min_samples_leaf = int(parameters.get(self.MIN_LEAF_PARAM, 1) or 1)
-            self.max_features = parameters.get(self.MAX_FEATURES_PARAM, None) or None #mudei
-            self.criterion = parameters.get(self.CRITERION_PARAM, 'friedman_mse') or 'friedman_mse' #mudei
+            self.max_features = parameters.get(self.MAX_FEATURES_PARAM, None) or None
+            self.criterion = parameters.get(self.CRITERION_PARAM, 'friedman_mse') or 'friedman_mse'
             self.min_weight_fraction_leaf = float(parameters.get(self.MIN_WEIGHT_FRACTION_LEAF_PARAM, 0) or 0)
             self.max_leaf_nodes = parameters.get(self.MAX_LEAF_NODES_PARAM, None)
             self.min_impurity_decrease = float(parameters.get(self.MIN_IMPURITY_DECREASE_PARAM, 0) or 0)
@@ -166,7 +166,7 @@ class GradientBoostingRegressorOperation(RegressionOperation):
             self.alpha = float(parameters.get(self.ALPHA_PARAM, 0.9) or 0.9)
             self.presort = int(parameters.get(self.PRESORT_PARAM, 0) or 0)
             self.validation_fraction = float(parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1) or 0.1)
-            self.n_iter_no_change = int(parameters.get(self.N_ITER_NO_CHANGE_PARAM, None) or None)
+            self.n_iter_no_change = parameters.get(self.N_ITER_NO_CHANGE_PARAM, None) or None
             self.tol = float(parameters.get(self.TOL_PARAM, 1e-4) or 1e-4)
             self.loss = parameters.get(self.LOSS_PARAM, 'ls') or 'ls'
 
@@ -205,7 +205,7 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                                                 max_depth={max_depth}, min_impurity_decrease={min_impurity_decrease}, 
                                                 random_state={random_state}, max_features={max_features}, 
                                                 alpha={alpha}, verbose={verbose}, max_leaf_nodes={max_leaf_nodes}, 
-                                                warm_start={warm_start}, presort=’{presort}’, 
+                                                warm_start={warm_start}, presort={presort}, 
                                                 validation_fraction={validation_fraction}, 
                                                 n_iter_no_change={n_iter_no_change}, tol={tol})
             {model}.fit(X_train, y)          

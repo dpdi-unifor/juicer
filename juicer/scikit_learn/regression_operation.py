@@ -143,7 +143,7 @@ class GradientBoostingRegressorOperation(RegressionOperation):
             'model', 'model_{}'.format(self.order))
 
         self.input_port = self.named_inputs.get(
-            'input data', 'input_data_{}'.format(self.order))
+            'train input data', 'input_data_{}'.format(self.order))
 
         if self.has_code:
             self.learning_rate = float(parameters.get(self.LEARNING_RATE_PARAM, 0.1) or 0.1)
@@ -185,6 +185,8 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                 from sklearn.ensemble import GradientBoostingRegressor
                 """
 
+            self.input_treatment()
+
     @property
     def get_data_out_names(self, sep=','):
         return self.output
@@ -192,206 +194,47 @@ class GradientBoostingRegressorOperation(RegressionOperation):
     def get_output_names(self, sep=', '):
         return sep.join([self.output, self.model])
 
+    def input_treatment(self):
+        if self.max_features is not None and self.max_features != '0':
+            self.max_features = int(self.max_features)
+        else:
+            self.max_features = None
+        if self.max_leaf_nodes is not None and self.max_leaf_nodes != '0':
+            self.max_leaf_nodes = int(self.max_leaf_nodes)
+        else:
+            self.max_leaf_nodes = None
+        if self.random_state is not None and self.random_state != '0':
+            self.random_state = int(self.random_state)
+        else:
+            self.random_state = None
+        if self.n_iter_no_change is not None and self.n_iter_no_change != '0':
+            self.n_iter_no_change = int(self.n_iter_no_change)
+        else:
+            self.n_iter_no_change = None
+        self.warm_start = True if int(self.warm_start) == 1 else False
+        self.presort = True if int(self.presort) == 1 else False
+        if self.validation_fraction < 0 or self.validation_fraction > 1:
+            raise ValueError(
+                _("Parameter '{}' must be 0 <= x =< 1 for task {}").format(
+                    self.VALIDATION_FRACTION_PARAM, self.__class__))
+
     def generate_code(self):
         code = dedent("""
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{features}].values.tolist()
             y = {input_data}[{label}].values.tolist()
-            if {max_features} != None and {max_leaf_nodes} != None and {random_state} != None:
-                {model} = GradientBoostingRegressor(loss=’{loss}’, learning_rate={learning_rate}, 
+            {model} = GradientBoostingRegressor(loss='{loss}', learning_rate={learning_rate}, 
                                                     n_estimators={n_estimators}, subsample={subsample}, 
-                                                    criterion=’{criterion}’, min_samples_split={min_samples_split}, 
-                                                    min_samples_leaf={min_samples_leaf}, 
-                                                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                                                    max_depth={max_depth}, 
-                                                    min_impurity_decrease={min_impurity_decrease}, 
-                                                    random_state=int({random_state}), max_features=int({max_features}), 
-                                                    alpha={alpha}, verbose={verbose}, 
-                                                    max_leaf_nodes=int({max_leaf_nodes}), warm_start={warm_start}, 
-                                                    presort={presort}, validation_fraction={validation_fraction}, 
-                                                    n_iter_no_change={n_iter_no_change}, tol={tol})
-            elif {n_iter_no_change} != None and {max_leaf_nodes} != None and {random_state} != None:
-                {model} = GradientBoostingRegressor(loss=’{loss}’, learning_rate={learning_rate}, 
-                                                    n_estimators={n_estimators}, subsample={subsample}, 
-                                                    criterion=’{criterion}’, min_samples_split={min_samples_split}, 
-                                                    min_samples_leaf={min_samples_leaf}, 
-                                                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                                                    max_depth={max_depth}, 
-                                                    min_impurity_decrease={min_impurity_decrease}, 
-                                                    random_state=int({random_state}), max_features={max_features}, 
-                                                    alpha={alpha}, verbose={verbose}, 
-                                                    max_leaf_nodes=int({max_leaf_nodes}), warm_start={warm_start}, 
-                                                    presort={presort}, validation_fraction={validation_fraction}, 
-                                                    n_iter_no_change=int({n_iter_no_change}), tol={tol})
-            elif {n_iter_no_change} != None and {max_features} != None and {random_state} != None:
-                {model} = GradientBoostingRegressor(loss=’{loss}’, learning_rate={learning_rate}, 
-                                                    n_estimators={n_estimators}, subsample={subsample}, 
-                                                    criterion=’{criterion}’, min_samples_split={min_samples_split}, 
-                                                    min_samples_leaf={min_samples_leaf}, 
-                                                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                                                    max_depth={max_depth}, 
-                                                    min_impurity_decrease={min_impurity_decrease}, 
-                                                    random_state=int({random_state}), max_features=int({max_features}), 
-                                                    alpha={alpha}, verbose={verbose}, 
-                                                    max_leaf_nodes={max_leaf_nodes}, warm_start={warm_start}, 
-                                                    presort={presort}, validation_fraction={validation_fraction}, 
-                                                    n_iter_no_change=int({n_iter_no_change}), tol={tol})
-            elif {n_iter_no_change} != None and {max_features} != None and {max_leaf_nodes} != None:
-                {model} = GradientBoostingRegressor(loss=’{loss}’, learning_rate={learning_rate}, 
-                                                    n_estimators={n_estimators}, subsample={subsample}, 
-                                                    criterion=’{criterion}’, min_samples_split={min_samples_split}, 
-                                                    min_samples_leaf={min_samples_leaf}, 
-                                                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                                                    max_depth={max_depth}, 
-                                                    min_impurity_decrease={min_impurity_decrease}, 
-                                                    random_state={random_state}, max_features=int({max_features}), 
-                                                    alpha={alpha}, verbose={verbose}, 
-                                                    max_leaf_nodes=int({max_leaf_nodes}), warm_start={warm_start}, 
-                                                    presort={presort}, validation_fraction={validation_fraction}, 
-                                                    n_iter_no_change=int({n_iter_no_change}), tol={tol})
-            elif {n_iter_no_change} != None and {max_features} != None:
-                {model} = GradientBoostingRegressor(loss=’{loss}’, learning_rate={learning_rate}, 
-                                                    n_estimators={n_estimators}, subsample={subsample}, 
-                                                    criterion=’{criterion}’, min_samples_split={min_samples_split}, 
-                                                    min_samples_leaf={min_samples_leaf}, 
-                                                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                                                    max_depth={max_depth}, 
-                                                    min_impurity_decrease={min_impurity_decrease}, 
-                                                    random_state={random_state}, max_features=int({max_features}), 
-                                                    alpha={alpha}, verbose={verbose}, 
-                                                    max_leaf_nodes={max_leaf_nodes}, warm_start={warm_start}, 
-                                                    presort={presort}, validation_fraction={validation_fraction}, 
-                                                    n_iter_no_change=int({n_iter_no_change}), tol={tol})
-            elif {n_iter_no_change} != None and {max_leaf_nodes} != None:
-                {model} = GradientBoostingRegressor(loss=’{loss}’, learning_rate={learning_rate}, 
-                                                    n_estimators={n_estimators}, subsample={subsample}, 
-                                                    criterion=’{criterion}’, min_samples_split={min_samples_split}, 
+                                                    criterion='{criterion}', min_samples_split={min_samples_split}, 
                                                     min_samples_leaf={min_samples_leaf}, 
                                                     min_weight_fraction_leaf={min_weight_fraction_leaf}, 
                                                     max_depth={max_depth}, 
                                                     min_impurity_decrease={min_impurity_decrease}, 
                                                     random_state={random_state}, max_features={max_features}, 
-                                                    alpha={alpha}, verbose={verbose}, 
-                                                    max_leaf_nodes=int({max_leaf_nodes}), warm_start={warm_start}, 
-                                                    presort={presort}, validation_fraction={validation_fraction}, 
-                                                    n_iter_no_change=int({n_iter_no_change}), tol={tol})
-            elif {n_iter_no_change} != None and {random_state} != None:
-                {model} = GradientBoostingRegressor(loss=’{loss}’, learning_rate={learning_rate}, 
-                                                    n_estimators={n_estimators}, subsample={subsample}, 
-                                                    criterion=’{criterion}’, min_samples_split={min_samples_split}, 
-                                                    min_samples_leaf={min_samples_leaf}, 
-                                                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                                                    max_depth={max_depth}, 
-                                                    min_impurity_decrease={min_impurity_decrease}, 
-                                                    random_state=int({random_state}), max_features={max_features}, 
-                                                    alpha={alpha}, verbose={verbose}, 
-                                                    max_leaf_nodes={max_leaf_nodes}, warm_start={warm_start}, 
-                                                    presort={presort}, validation_fraction={validation_fraction}, 
-                                                    n_iter_no_change=int({n_iter_no_change}), tol={tol})
-            elif {max_features} != None and {random_state} != None:
-                {model} = GradientBoostingRegressor(loss=’{loss}’, learning_rate={learning_rate}, 
-                                                    n_estimators={n_estimators}, subsample={subsample}, 
-                                                    criterion=’{criterion}’, min_samples_split={min_samples_split}, 
-                                                    min_samples_leaf={min_samples_leaf}, 
-                                                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                                                    max_depth={max_depth}, 
-                                                    min_impurity_decrease={min_impurity_decrease}, 
-                                                    random_state=int({random_state}), max_features=int({max_features}), 
-                                                    alpha={alpha}, verbose={verbose}, 
-                                                    max_leaf_nodes={max_leaf_nodes}, warm_start={warm_start}, 
-                                                    presort={presort}, validation_fraction={validation_fraction}, 
+                                                    alpha={alpha}, verbose={verbose}, max_leaf_nodes={max_leaf_nodes}, 
+                                                    warm_start={warm_start}, presort={presort}, 
+                                                    validation_fraction={validation_fraction}, 
                                                     n_iter_no_change={n_iter_no_change}, tol={tol})
-            elif {max_leaf_nodes} != None and {random_state} != None:
-                {model} = GradientBoostingRegressor(loss=’{loss}’, learning_rate={learning_rate}, 
-                                                    n_estimators={n_estimators}, subsample={subsample}, 
-                                                    criterion=’{criterion}’, min_samples_split={min_samples_split}, 
-                                                    min_samples_leaf={min_samples_leaf}, 
-                                                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                                                    max_depth={max_depth}, 
-                                                    min_impurity_decrease={min_impurity_decrease}, 
-                                                    random_state=int({random_state}), max_features={max_features}, 
-                                                    alpha={alpha}, verbose={verbose}, 
-                                                    max_leaf_nodes=int({max_leaf_nodes}), warm_start={warm_start}, 
-                                                    presort={presort}, validation_fraction={validation_fraction}, 
-                                                    n_iter_no_change={n_iter_no_change}, tol={tol})
-            elif {max_features} != None and {max_leaf_nodes} != None:
-                {model} = GradientBoostingRegressor(loss=’{loss}’, learning_rate={learning_rate}, 
-                                                    n_estimators={n_estimators}, subsample={subsample}, 
-                                                    criterion=’{criterion}’, min_samples_split={min_samples_split}, 
-                                                    min_samples_leaf={min_samples_leaf}, 
-                                                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                                                    max_depth={max_depth}, 
-                                                    min_impurity_decrease={min_impurity_decrease}, 
-                                                    random_state={random_state}, max_features=int({max_features}), 
-                                                    alpha={alpha}, verbose={verbose}, 
-                                                    max_leaf_nodes=int({max_leaf_nodes}), warm_start={warm_start}, 
-                                                    presort={presort}, validation_fraction={validation_fraction}, 
-                                                    n_iter_no_change={n_iter_no_change}, tol={tol})
-            elif {max_features} != None:
-                {model} = GradientBoostingRegressor(loss=’{loss}’, learning_rate={learning_rate}, 
-                                                    n_estimators={n_estimators}, subsample={subsample}, 
-                                                    criterion=’{criterion}’, min_samples_split={min_samples_split}, 
-                                                    min_samples_leaf={min_samples_leaf}, 
-                                                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                                                    max_depth={max_depth}, 
-                                                    min_impurity_decrease={min_impurity_decrease}, 
-                                                    random_state={random_state}, max_features=int({max_features}), 
-                                                    alpha={alpha}, verbose={verbose}, 
-                                                    max_leaf_nodes={max_leaf_nodes}, warm_start={warm_start}, 
-                                                    presort={presort}, validation_fraction={validation_fraction}, 
-                                                    n_iter_no_change={n_iter_no_change}, tol={tol})
-            elif {max_leaf_nodes} != None:
-                {model} = GradientBoostingRegressor(loss=’{loss}’, learning_rate={learning_rate}, 
-                                                    n_estimators={n_estimators}, subsample={subsample}, 
-                                                    criterion=’{criterion}’, min_samples_split={min_samples_split}, 
-                                                    min_samples_leaf={min_samples_leaf}, 
-                                                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                                                    max_depth={max_depth}, 
-                                                    min_impurity_decrease={min_impurity_decrease}, 
-                                                    random_state={random_state}, max_features={max_features}, 
-                                                    alpha={alpha}, verbose={verbose}, 
-                                                    max_leaf_nodes=int({max_leaf_nodes}), warm_start={warm_start}, 
-                                                    presort={presort}, validation_fraction={validation_fraction}, 
-                                                    n_iter_no_change={n_iter_no_change}, tol={tol})
-            elif {random_state} != None:
-                {model} = GradientBoostingRegressor(loss=’{loss}’, learning_rate={learning_rate}, 
-                                                    n_estimators={n_estimators}, subsample={subsample}, 
-                                                    criterion=’{criterion}’, min_samples_split={min_samples_split}, 
-                                                    min_samples_leaf={min_samples_leaf}, 
-                                                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                                                    max_depth={max_depth}, 
-                                                    min_impurity_decrease={min_impurity_decrease}, 
-                                                    random_state=int({random_state}), max_features={max_features}, 
-                                                    alpha={alpha}, verbose={verbose}, 
-                                                    max_leaf_nodes={max_leaf_nodes}, warm_start={warm_start}, 
-                                                    presort={presort}, validation_fraction={validation_fraction}, 
-                                                    n_iter_no_change={n_iter_no_change}, tol={tol})
-            elif {n_iter_no_change} != None:
-                {model} = GradientBoostingRegressor(loss=’{loss}’, learning_rate={learning_rate}, 
-                                                    n_estimators={n_estimators}, subsample={subsample}, 
-                                                    criterion=’{criterion}’, min_samples_split={min_samples_split}, 
-                                                    min_samples_leaf={min_samples_leaf}, 
-                                                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                                                    max_depth={max_depth}, 
-                                                    min_impurity_decrease={min_impurity_decrease}, 
-                                                    random_state={random_state}, max_features={max_features}, 
-                                                    alpha={alpha}, verbose={verbose}, 
-                                                    max_leaf_nodes={max_leaf_nodes}, warm_start={warm_start}, 
-                                                    presort={presort}, validation_fraction={validation_fraction}, 
-                                                    n_iter_no_change=int({n_iter_no_change}), tol={tol})
-            else:
-                {model} = GradientBoostingRegressor(loss=’{loss}’, learning_rate={learning_rate}, 
-                                                    n_estimators={n_estimators}, subsample={subsample}, 
-                                                    criterion=’{criterion}’, min_samples_split={min_samples_split}, 
-                                                    min_samples_leaf={min_samples_leaf}, 
-                                                    min_weight_fraction_leaf={min_weight_fraction_leaf}, 
-                                                    max_depth={max_depth}, 
-                                                    min_impurity_decrease={min_impurity_decrease}, 
-                                                    random_state=int({random_state}), max_features=int({max_features}), 
-                                                    alpha={alpha}, verbose={verbose}, 
-                                                    max_leaf_nodes=int({max_leaf_nodes}), warm_start={warm_start}, 
-                                                    presort={presort}, validation_fraction={validation_fraction}, 
-                                                    n_iter_no_change=int({n_iter_no_change}), tol={tol})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
             """.format(output_data=self.output,
@@ -433,20 +276,38 @@ class HuberRegressorOperation(RegressionOperation):
     MAX_ITER_PARAM = 'max_iter'
     ALPHA_PARAM = 'alpha'
     TOLERANCE_PARAM = 'tol'
+    WARM_START_PARAM = 'warm_start'
+    FIT_INTERCEPT_PARAM = 'fit_intercept'
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
+    PREDICTION_PARAM = 'prediction'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         RegressionOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.HuberRegressor'
-        self.has_code = len(self.named_outputs) > 0
+        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
+
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+
+        self.input_port = self.named_inputs.get(
+            'train input data', 'input_data_{}'.format(self.order))
 
         if self.has_code:
-            self.epsilon = parameters.get(self.EPSILON_PARAM, 1.35) or 1.35
-            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 100) or 100
-            self.alpha = parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001
+            self.epsilon = float(parameters.get(self.EPSILON_PARAM, 1.35) or 1.35)
+            self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 100) or 100)
+            self.alpha = float(parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001)
             self.tol = parameters.get(self.TOLERANCE_PARAM, 0.00001) or 0.00001
             self.tol = abs(float(self.tol))
+            self.warm_start = int(parameters.get(self.WARM_START_PARAM, 0) or 0)
+            self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_PARAM, 1) or 1)
+            self.features = parameters['features']
+            self.label = parameters.get(self.LABEL_PARAM, None)
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
 
             vals = [self.max_iter, self.alpha]
             atts = [self.MAX_ITER_PARAM, self.ALPHA_PARAM]
@@ -464,16 +325,39 @@ class HuberRegressorOperation(RegressionOperation):
             self.has_import = \
                 "from sklearn.linear_model import HuberRegressor\n"
 
+            self.input_treatment()
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
+    def input_treatment(self):
+        self.warm_start = True if int(self.warm_start) == 1 else False
+        self.fit_intercept = True if int(self.fit_intercept) == 1 else False
+
     def generate_code(self):
         code = dedent("""
-            {output} = HuberRegressor(epsilon={epsilon},
-                max_iter={max_iter}, alpha={alpha},
-                tol={tol})
-            """).format(output=self.output,
+            {output_data} = {input_data}.copy()            
+            X_train = {input_data}[{features}].values.tolist()
+            y = {input_data}[{label}].values.tolist()
+            {model} = HuberRegressor(epsilon={epsilon}, max_iter={max_iter}, alpha={alpha}, tol={tol})
+            {model}.fit(X_train, y)
+            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+            """).format(output_data=self.output,
                         epsilon=self.epsilon,
                         alpha=self.alpha,
                         max_iter=self.max_iter,
-                        tol=self.tol)
+                        tol=self.tol,
+                        input_data=self.input_port,
+                        model=self.model,
+                        warm_start=self.warm_start,
+                        fit_intercept=self.fit_intercept,
+                        features=self.features,
+                        label=self.label,
+                        prediction=self.prediction)
 
         return code
 
@@ -831,7 +715,7 @@ class RandomForestRegressorOperation(RegressionOperation):
     def input_treatment(self):
         if self.n_jobs < -1:
             raise ValueError(
-                _("Parameter '{}' must be x>=-1 for task {}").format(
+                _("Parameter '{}' must be x >= -1 for task {}").format(
                     self.N_JOBS_PARAM, self.__class__))
 
         self.n_jobs = 1 if int(self.n_jobs) == 0 else int(self.n_jobs)
@@ -842,76 +726,25 @@ class RandomForestRegressorOperation(RegressionOperation):
 
         self.warm_start = True if int(self.warm_start) == 1 else False
 
+        if self.max_depth is not None and self.max_depth != '0':
+            self.max_depth = int(self.max_depth)
+        else:
+            self.max_depth = None
+        if self.max_leaf_nodes is not None and self.max_leaf_nodes != '0':
+            self.max_leaf_nodes = int(self.max_leaf_nodes)
+        else:
+            self.max_leaf_nodes = None
+        if self.random_state is not None and self.random_state != '0':
+            self.random_state = int(self.random_state)
+        else:
+            self.random_state = None
+
     def generate_code(self):
         code = dedent("""
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{features}].values.tolist()
             y = {input_data}[{label}].values.tolist()
-            if {max_depth} != None and {max_leaf_nodes} != None:
-                {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
-                                                 max_depth=int({max_depth}), min_samples_split={min_samples_split}, 
-                                                 min_samples_leaf={min_samples_leaf}, random_state={random_state},
-                                                 n_jobs={n_jobs}, criterion='{criterion}', 
-                                                 min_weight_fraction_leaf={min_weight_fraction_leaf},
-                                                 max_leaf_nodes=int({max_leaf_nodes}), 
-                                                 min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
-                                                 oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
-            elif {max_leaf_nodes} != None and {random_state} != None:
-                {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
-                                                 max_depth={max_depth}, min_samples_split={min_samples_split}, 
-                                                 min_samples_leaf={min_samples_leaf}, random_state=int({random_state}),
-                                                 n_jobs={n_jobs}, criterion='{criterion}', 
-                                                 min_weight_fraction_leaf={min_weight_fraction_leaf},
-                                                 max_leaf_nodes=int({max_leaf_nodes}), 
-                                                 min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
-                                                 oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
-            elif {max_depth} != None and {random_state} != None:
-                {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
-                                                 max_depth=int({max_depth}), min_samples_split={min_samples_split}, 
-                                                 min_samples_leaf={min_samples_leaf}, random_state=int({random_state}),
-                                                 n_jobs={n_jobs}, criterion='{criterion}', 
-                                                 min_weight_fraction_leaf={min_weight_fraction_leaf},
-                                                 max_leaf_nodes={max_leaf_nodes}, 
-                                                 min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
-                                                 oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
-            elif {max_depth} != None:
-               {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
-                                                 max_depth=int({max_depth}), min_samples_split={min_samples_split}, 
-                                                 min_samples_leaf={min_samples_leaf}, random_state={random_state},
-                                                 n_jobs={n_jobs}, criterion='{criterion}', 
-                                                 min_weight_fraction_leaf={min_weight_fraction_leaf},
-                                                 max_leaf_nodes={max_leaf_nodes}, 
-                                                 min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
-                                                 oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
-            elif {max_leaf_nodes} != None:
-                {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
-                                                 max_depth={max_depth}, min_samples_split={min_samples_split}, 
-                                                 min_samples_leaf={min_samples_leaf}, random_state={random_state},
-                                                 n_jobs={n_jobs}, criterion='{criterion}', 
-                                                 min_weight_fraction_leaf={min_weight_fraction_leaf},
-                                                 max_leaf_nodes=int({max_leaf_nodes}), 
-                                                 min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
-                                                 oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
-            elif {random_state} != None:
-                {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
-                                                 max_depth={max_depth}, min_samples_split={min_samples_split}, 
-                                                 min_samples_leaf={min_samples_leaf}, random_state=int({random_state}),
-                                                 n_jobs={n_jobs}, criterion='{criterion}', 
-                                                 min_weight_fraction_leaf={min_weight_fraction_leaf},
-                                                 max_leaf_nodes={max_leaf_nodes}, 
-                                                 min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
-                                                 oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
-            elif {max_depth} != None and {max_leaf_nodes} != None and {random_state} != None:
-                {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
-                                            max_depth=int({max_depth}), min_samples_split={min_samples_split}, 
-                                            min_samples_leaf={min_samples_leaf}, random_state=int({random_state}),
-                                            n_jobs={n_jobs}, criterion='{criterion}', 
-                                            min_weight_fraction_leaf={min_weight_fraction_leaf},
-                                            max_leaf_nodes=int({max_leaf_nodes}), 
-                                            min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
-                                            oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
-            else:
-                {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
+            {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
                                             max_depth={max_depth}, min_samples_split={min_samples_split}, 
                                             min_samples_leaf={min_samples_leaf}, random_state={random_state},
                                             n_jobs={n_jobs}, criterion='{criterion}', 

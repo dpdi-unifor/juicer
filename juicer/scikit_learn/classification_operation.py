@@ -554,6 +554,15 @@ class SvmClassifierOperation(Operation):
     TOLERANCE_PARAM = 'tol'
     MAX_ITER_PARAM = 'max_iter'
     SEED_PARAM = 'seed'
+    LABEL_PARAM = 'label'
+    FEATURES_PARAM = 'features'
+    PREDICTION_PARAM = 'prediction'
+    GAMMA_PARAM = 'gamma'
+    COEF0_PARAM = 'coef0'
+    SHRINKING_PARAM = 'shrinking'
+    PROBABILITY_PARAM = 'probability'
+    CACHE_SIZE_PARAM = 'cache_size'
+    DECISION_FUNCTION_SHAPE_PARAM = 'decision_function_shape'
 
     KERNEL_PARAM_LINEAR = 'linear'
     KERNEL_PARAM_RBF = 'rbf'
@@ -565,10 +574,31 @@ class SvmClassifierOperation(Operation):
 
         self.has_code = True
         if self.has_code:
-            self.output = \
-                named_outputs.get('algorithm',
-                                  'algorithm_tmp_{}'.format(self.order))
+            self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
 
+            self.input_port = self.named_inputs.get(
+            'train input data', 'input_data_{}'.format(self.order))
+
+            self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+
+            if self.LABEL_PARAM not in parameters:
+                msg = _("Parameters '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.LABEL_PARAM,
+                    self.__class__.__name__))
+            else: self.label = parameters.get(self.LABEL_PARAM, None)
+
+            if self.FEATURES_PARAM not in parameters:
+                msg = _("Parameters '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.FEATURES_PARAM,
+                    self.__class__.__name__))
+            else: self.features = parameters.get(self.FEATURES_PARAM, None)
+
+            self.prediction = parameters.get(self.PREDICTION_PARAM,
+                                             'prediction')
             self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, -1))
             self.tol = float(parameters.get(self.TOLERANCE_PARAM, 0.001) or 0.001)
             self.tol = abs(float(self.tol))
@@ -579,8 +609,15 @@ class SvmClassifierOperation(Operation):
                     self.KERNEL_PARAM_RBF) or self.KERNEL_PARAM_RBF
             self.c = float(parameters.get(self.PENALTY_PARAM, 1.0) or 1.0)
 
-            vals = [self.degree, self.c]
-            atts = [self.DEGREE_PARAM, self.PENALTY_PARAM]
+            self.gamma = float(parameters.get(self.GAMMA_PARAM, 1.0)) if parameters.get(self.GAMMA_PARAM, None) != None else "'auto'"
+            self.coef0 = float(parameters.get(self.COEF0_PARAM, 0.0) or 0.0)
+            self.shrinking = int(parameters.get(self.SHRINKING_PARAM, 1)) == 1
+            self.probability = int(parameters.get(self.PROBABILITY_PARAM, 0)) == 1
+            self.cache_size = float(parameters.get(self.CACHE_SIZE_PARAM, 200.0) or 200.0)
+            self.decision_function_shape = parameters.get(self.DECISION_FUNCTION_SHAPE_PARAM, 'ovr') or 'ovr'            
+
+            vals = [self.degree, self.c, self.cache_size]
+            atts = [self.DEGREE_PARAM, self.PENALTY_PARAM, self.CACHE_SIZE_PARAM]
             for var, att in zip(vals, atts):
                 if var <= 0:
                     raise ValueError(
@@ -590,12 +627,36 @@ class SvmClassifierOperation(Operation):
             self.has_import = \
                 "from sklearn.svm import SVC\n"
 
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
     def generate_code(self):
         """Generate code."""
         code = """
-        {output} = SVC(tol={tol}, C={c}, max_iter={max_iter}, 
-                       degree={degree}, kernel='{kernel}', random_state={seed})
+        {model} = SVC(tol={tol}, C={c}, max_iter={max_iter}, 
+                       degree={degree}, kernel='{kernel}', random_state={seed},
+                       gamma={gamma}, coef0={coef0}, probability={prob},
+                       cache_size={cache},shrinking={shrinking}, 
+                       decision_function_shape='{decision_func_shape}',
+                       class_weight=None, verbose=False)
+
+        X_train = {input}[{features}].values.tolist()
+        y = {input}[{label}].values.tolist()
+        {model}.fit(X_train, y)
+
+        {output} = {input}.copy()
+        {output}['{prediction_column}'] = {model}.predict(X_train).tolist()
+        
         """.format(tol=self.tol, c=self.c, max_iter=self.max_iter,
                    degree=self.degree, kernel=self.kernel, seed=self.seed,
+                   gamma=self.gamma, coef0=self.coef0, prob=self.probability,
+                   cache=self.cache_size, shrinking=self.shrinking, 
+                   decision_func_shape=self.decision_function_shape,
+                   model=self.model, input=self.input_port, label=self.label,
+                   features=self.features, prediction_column=self.prediction,
                    output=self.output)
         return dedent(code)

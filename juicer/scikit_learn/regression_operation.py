@@ -664,6 +664,21 @@ class MLPRegressorOperation(Operation):
 
         self.early_stopping = True if int(self.early_stopping) == 1 else False
 
+        if self.momentum < 0 or self.momentum > 1:
+            raise ValueError(
+                _("Parameter '{}' must be x between 0 and 1 for task {}").format(
+                    self.MOMENTUM_PARAM, self.__class__))
+
+        if self.beta_1 < 0 or self.momentum >= 1:
+            raise ValueError(
+                _("Parameter '{}' must be x between 0 and 1 for task {}").format(
+                    self.BETA_1_PARAM, self.__class__))
+
+        if self.beta_2 < 0 or self.momentum >= 1:
+            raise ValueError(
+                _("Parameter '{}' must be x between 0 and 1 for task {}").format(
+                    self.BETA_2_PARAM, self.__class__))
+
     def generate_code(self):
         """Generate code."""
         code = """

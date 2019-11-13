@@ -548,7 +548,7 @@ class LinearRegressionOperation(RegressionOperation):
 
 class MLPRegressorOperation(Operation):
 
-    HIDDEN_LAYER_SIZES_PARAM = 'hidden_layer_sizes'
+    HIDDEN_LAYER_SIZES_PARAM = 'layer_sizes'
     ACTIVATION_PARAM = 'activation'
     SOLVER_PARAM = 'solver'
     ALPHA_PARAM = 'alpha'
@@ -565,17 +565,39 @@ class MLPRegressorOperation(Operation):
     ACTIVATION_PARAM_TANH = 'tanh'
     ACTIVATION_PARAM_RELU = 'relu'
 
+    BATCH_SIZE_PARAM = 'batch_size'
+    LEARNING_RATE_PARAM = 'learning_rate'
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
+    PREDICTION_PARAM = 'prediction'
+    LEARNING_RATE_INIT_PARAM = 'learning_rate_init'
+    POWER_T_PARAM = 'power_t'
+    SHUFFLE_PARAM = 'shuffle'
+    N_ITER_NO_CHANGE_PARAM = 'n_iter_no_change'
+    WARM_START_PARAM = 'warm_start'
+    MOMENTUM_PARAM = 'momentum'
+    NESTEROVS_MOMENTUM_PARAM = 'nesterovs_momentum'
+    EARLY_STOPPING_PARAM = 'early_stopping'
+    VALIDATION_FRACTION_PARAM = 'validation_fraction'
+    BETA_1_PARAM = 'beta_1'
+    BETA_2_PARAM = 'beta_2'
+    EPSILON_PARAM = 'epsilon'
+
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = len(named_outputs) > 0
-        if self.has_code:
-            self.output = \
-                named_outputs.get('algorithm',
-                                  'algorithm_tmp_{}'.format(self.order))
+        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
 
-            self.hidden_layers = parameters.get(self.HIDDEN_LAYER_SIZES_PARAM,
-                                                '(1,100,1)') or '(1,100,1)'
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+
+        self.input_port = self.named_inputs.get(
+            'train input data', 'input_data_{}'.format(self.order))
+
+        if self.has_code:
+            self.hidden_layers = parameters.get(self.HIDDEN_LAYER_SIZES_PARAM, '(1,100,1)') or '(1,100,1)'
             self.hidden_layers = \
                 self.hidden_layers.replace("(", "").replace(")", "")
             if not bool(re.match('(\d+,)+\d*', self.hidden_layers)):
@@ -603,15 +625,61 @@ class MLPRegressorOperation(Operation):
 
             self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
 
+            self.batch_size = parameters.get(self.BATCH_SIZE_PARAM, 'auto')
+            self.learning_rate = parameters.get(self.LEARNING_RATE_PARAM, 'constant')
+            self.features = parameters['features']
+            self.label = parameters.get(self.LABEL_PARAM, None)
+            self. prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.learning_rate_init = float(parameters.get(self.LEARNING_RATE_INIT_PARAM, 0.001))
+            self.power_t = float(parameters.get(self.POWER_T_PARAM, 0.5))
+            self.shuffle = int(parameters.get(self.SHUFFLE_PARAM, 1))
+            self.n_iter_no_change = int(parameters.get(self.N_ITER_NO_CHANGE_PARAM, 10))
+            self.warm_start = int(parameters.get(self.WARM_START_PARAM, 0))
+            self.momentum = float(parameters.get(self.MOMENTUM_PARAM, 0.9))
+            self.nesterovs_momentum = int(parameters.get(self.NESTEROVS_MOMENTUM_PARAM, 1))
+            self.early_stopping = int(parameters.get(self.EARLY_STOPPING_PARAM, 0))
+            self.validation_fraction = float(parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1))
+            self.beta_1 = float(parameters.get(self.BETA_1_PARAM, 0.9))
+            self.beta_2 = float(parameters.get(self.BETA_2_PARAM, 0.999))
+            self.epsilon = float(parameters.get(self.EPSILON_PARAM, 0.00000001))
+
             self.has_import = \
-                "from sklearn.neural_network import MLPRegressor\n"
+                "from sklearn.neural_network import MLPRegressor\n" \
+
+            self.input_treatment()
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
+    def input_treatment(self):
+        self.shuffle = True if int(self.shuffle) == 1 else False
+
+        self.warm_start = True if int(self.warm_start) == 1 else False
+
+        self.nesterovs_momentum = True if int(self.nesterovs_momentum) == 1 else False
+
+        self.early_stopping = True if int(self.early_stopping) == 1 else False
 
     def generate_code(self):
         """Generate code."""
         code = """
-            {output} = MLPRegressor(hidden_layer_sizes=({hidden_layers}), 
-            activation='{activation}', solver='{solver}', alpha={alpha}, 
-            max_iter={max_iter}, random_state={seed}, tol={tol})
+            {output_data} = {input_data}.copy()            
+            X_train = {input_data}[{columns}].values.tolist()
+            y = {input_data}[{label}].values.tolist()
+            {model} = MLPRegressor(hidden_layer_sizes=({hidden_layers}), activation='{activation}', solver='{solver}',
+                                    alpha={alpha}, max_iter={max_iter}, random_state={seed}, tol={tol}, 
+                                    batch_size='{batch_size}', learning_rate='{learning_rate}', 
+                                    learning_rate_init={learning_rate_init}, power_t={power_t}, shuffle={shuffle}, 
+                                    n_iter_no_change={n_iter_no_change}, warm_start={warm_start}, momentum={momentum}, 
+                                    nesterovs_momentum={nesterovs_momentum}, early_stopping={early_stopping}, 
+                                    validation_fraction={validation_fraction}, beta_1={beta_1}, beta_2={beta_2}, 
+                                    epsilon={epsilon})
+            {model}.fit(X_train, y)          
+            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
             """.format(tol=self.tol,
                        alpha=self.alpha,
                        activation=self.activation,
@@ -619,7 +687,26 @@ class MLPRegressorOperation(Operation):
                        max_iter=self.max_iter,
                        seed=self.seed,
                        solver=self.solver,
-                       output=self.output)
+                       output_data=self.output,
+                       prediction=self.prediction,
+                       columns=self.features,
+                       model=self.model,
+                       input_data=self.input_port,
+                       label=self.label,
+                       batch_size=self.batch_size,
+                       learning_rate=self.learning_rate,
+                       learning_rate_init=self.learning_rate_init,
+                       power_t=self.power_t,
+                       shuffle=self.shuffle,
+                       n_iter_no_change=self.n_iter_no_change,
+                       warm_start=self.warm_start,
+                       momentum=self.momentum,
+                       nesterovs_momentum=self.nesterovs_momentum,
+                       early_stopping=self.early_stopping,
+                       validation_fraction=self.validation_fraction,
+                       beta_1=self.beta_1,
+                       beta_2=self.beta_2,
+                       epsilon=self.epsilon)
         return dedent(code)
 
 

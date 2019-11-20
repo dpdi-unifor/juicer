@@ -612,7 +612,7 @@ class MLPRegressorOperation(Operation):
 
             self.solver = parameters.get(
                     self.SOLVER_PARAM,
-                    self.SOLVER_PARAM_ADAM) or self.SOLVER_PARAM_LINEAR
+                    self.SOLVER_PARAM_ADAM) or self.SOLVER_PARAM_ADAM
 
             self.alpha = parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001
             self.alpha = abs(float(self.alpha))
@@ -893,24 +893,63 @@ class SGDRegressorOperation(RegressionOperation):
     MAX_ITER_PARAM = 'max_iter'
     TOLERANCE_PARAM = 'tol'
     SEED_PARAM = 'seed'
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
+    PREDICTION_PARAM = 'prediction'
+    POWER_T_PARAM = 'power_t'
+    EARLY_STOPPING = 'early_stopping'
+    VALIDATION_FRACTION_PARAM = 'validation_fraction'
+    LOSS_PARAM = 'loss'
+    EPSILON_PARAM = 'epsilon'
+    N_ITER_NO_CHANGE_PARAM = 'n_iter_no_change'
+    PENALTY_PARAM = 'penalty'
+    FIT_INTERCEPT_PARAM = 'fit_intercept'
+    ETA0_PARAM = 'eta0'
+    WARM_START_PARAM = 'warm_start'
+    VERBOSE_PARAM = 'verbose'
+    AVERAGE_PARAM = 'average'
+    LEARNING_RATE_PARAM = 'learning_rate'
+    SHUFFLE_PARAM = 'shuffle'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         RegressionOperation.__init__(self, parameters, named_inputs,
                                      named_outputs)
         self.parameters = parameters
         self.name = 'regression.SGDRegressor'
-        self.has_code = len(self.named_outputs) > 0
+        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
+
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+
+        self.input_port = self.named_inputs.get(
+            'train input data', 'input_data_{}'.format(self.order))
 
         if self.has_code:
-            self.alpha = parameters.get(
-                    self.ALPHA_PARAM, 0.0001) or 0.0001
-            self.l1_ratio = parameters.get(
-                    self.ELASTIC_PARAM, 0.15) or 0.15
-            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 1000) or 1000
-            self.tol = parameters.get(
-                    self.TOLERANCE_PARAM, 0.001) or 0.001
+            self.alpha = float(parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001)
+            self.l1_ratio = float(parameters.get(self.ELASTIC_PARAM, 0.15) or 0.15)
+            self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 1000) or 1000)
+            self.tol = parameters.get(self.TOLERANCE_PARAM, 0.001) or 0.001
             self.tol = abs(float(self.tol))
-            self.seed = parameters.get(self.SEED_PARAM, 'None')
+            self.seed = parameters.get(self.SEED_PARAM, None)
+            self.features = parameters['features']
+            self.label = parameters.get(self.LABEL_PARAM, None)
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.power_t = float(parameters.get(self.POWER_T_PARAM, 0.5))
+            self.early_stopping = int(parameters.get(self.EARLY_STOPPING, 0))
+            self.validation_fraction = float(parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1))
+            self.loss = parameters.get(self.LOSS_PARAM, 'squared_loss')
+            self.epsilon = parameters.get(self.EPSILON_PARAM, None)
+            self.n_iter_no_change = int(parameters.get(self.N_ITER_NO_CHANGE_PARAM, 5))
+            self.penalty = parameters.get(self.PENALTY_PARAM, 'l2')
+            self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_PARAM, 1))
+            self.eta0 = float(parameters.get(self.ETA0_PARAM, 0.01))
+            self.warm_start = int(parameters.get(self.WARM_START_PARAM, 0))
+            self.verbose = parameters.get(self.VERBOSE_PARAM, None)
+            self.average = int(parameters.get(self.AVERAGE_PARAM, 1))
+            self.learning_rate = parameters.get(self.LEARNING_RATE_PARAM, 'invscaling')
+            self.shuffle = int(parameters.get(self.SHUFFLE_PARAM, 1))
 
             vals = [self.alpha, self.max_iter]
             atts = [self.ALPHA_PARAM, self.MAX_ITER_PARAM]
@@ -920,25 +959,93 @@ class SGDRegressorOperation(RegressionOperation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
-            if 0 > self.l1_ratio > 1:
-                raise ValueError(
-                        _("Parameter '{}' must be 0<=x<=1 for task {}").format(
-                                self.ELASTIC_PARAM, self.__class__))
-
             self.has_import = \
                 "from sklearn.linear_model import SGDRegressor\n"
 
+            self.input_treatment()
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
+    def input_treatment(self):
+        self.early_stopping = True if int(self.early_stopping) == 1 else False
+
+        self.warm_start = True if int(self.warm_start) == 1 else False
+
+        self.shuffle = True if int(self.shuffle) == 1 else False
+
+        if self.tol is not None and self.tol != '0':
+            self.tol = float(self.tol)
+        else:
+            self.tol = None
+
+        if self.epsilon is not None and self.epsilon != '0':
+            self.epsilon = float(self.epsilon)
+        else:
+            self.epsilon = None
+
+        if self.seed is not None and self.seed != '0':
+            self.seed = int(self.seed)
+        else:
+            self.seed = None
+
+        if self.verbose is not None and self.verbose != '0':
+            self.verbose = int(self.verbose)
+        else:
+            self.verbose = None
+
+        if self.l1_ratio < 0 or self.l1_ratio > 1:
+            raise ValueError(
+                _("Parameter '{}' must be 0 <= x =< 1 for task {}").format(
+                    self.ELASTIC_PARAM, self.__class__))
+
+        if self.validation_fraction < 0 or self.validation_fraction > 1:
+            raise ValueError(
+                _("Parameter '{}' must be 0 <= x =< 1 for task {}").format(
+                    self.VALIDATION_FRACTION_PARAM, self.__class__))
+
     def generate_code(self):
         code = dedent("""
-            {output} = SGDRegressor(alpha={alpha},
-                l1_ratio={l1_ratio}, max_iter={max_iter},
-                tol={tol}, random_state={seed})
-            """).format(output=self.output,
-                        alpha=self.alpha,
+            {output_data} = {input_data}.copy()            
+            X_train = {input_data}[{columns}].values.tolist()
+            y = {input_data}[{label}].values.tolist()
+            {model} = SGDRegressor(alpha={alpha}, l1_ratio={l1_ratio}, max_iter={max_iter}, tol={tol}, 
+                                    random_state={seed}, epsilon={epsilon}, early_stopping={early_stopping}, 
+                                    validation_fraction={validation_fraction}, learning_rate={learning_rate}, 
+                                    power_t={power_t}, loss={loss}, n_iter_no_change={n_iter_no_change}, 
+                                    penalty={penalty}, fit_intercept={fit_intercept}, eta0={eta0}, 
+                                    warm_start={warm_start}, verbose=s{verbose}, average={average}, shuffle={shuffle})
+            {model}.fit(X_train, y)          
+            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+            """).format(alpha=self.alpha,
                         l1_ratio=self.l1_ratio,
                         max_iter=self.max_iter,
                         tol=self.tol,
-                        seed=self.seed)
+                        seed=self.seed,
+                        output_data=self.output,
+                        prediction=self.prediction,
+                        columns=self.features,
+                        model=self.model,
+                        input_data=self.input_port,
+                        label=self.label,
+                        epsilon=self.epsilon,
+                        early_stopping=self.early_stopping,
+                        validation_fraction=self.validation_fraction,
+                        learning_rate=self.learning_rate,
+                        power_t=self.power_t,
+                        loss=self.loss,
+                        n_iter_no_change=self.n_iter_no_change,
+                        penalty=self.penalty,
+                        fit_intercept=self.fit_intercept,
+                        eta0=self.eta0,
+                        warm_start=self.warm_start,
+                        verbose=self.verbose,
+                        average=self.average,
+                        shuffle=self.shuffle)
 
         return code
 

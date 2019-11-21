@@ -940,13 +940,13 @@ class SGDRegressorOperation(RegressionOperation):
             self.early_stopping = int(parameters.get(self.EARLY_STOPPING, 0))
             self.validation_fraction = float(parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1))
             self.loss = parameters.get(self.LOSS_PARAM, 'squared_loss')
-            self.epsilon = parameters.get(self.EPSILON_PARAM, None)
+            self.epsilon = float(parameters.get(self.EPSILON_PARAM, 0.1))
             self.n_iter_no_change = int(parameters.get(self.N_ITER_NO_CHANGE_PARAM, 5))
             self.penalty = parameters.get(self.PENALTY_PARAM, 'l2')
             self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_PARAM, 1))
             self.eta0 = float(parameters.get(self.ETA0_PARAM, 0.01))
             self.warm_start = int(parameters.get(self.WARM_START_PARAM, 0))
-            self.verbose = parameters.get(self.VERBOSE_PARAM, None)
+            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0))
             self.average = int(parameters.get(self.AVERAGE_PARAM, 1))
             self.learning_rate = parameters.get(self.LEARNING_RATE_PARAM, 'invscaling')
             self.shuffle = int(parameters.get(self.SHUFFLE_PARAM, 1))
@@ -978,25 +978,10 @@ class SGDRegressorOperation(RegressionOperation):
 
         self.shuffle = True if int(self.shuffle) == 1 else False
 
-        if self.tol is not None and self.tol != '0':
-            self.tol = float(self.tol)
-        else:
-            self.tol = None
-
-        if self.epsilon is not None and self.epsilon != '0':
-            self.epsilon = float(self.epsilon)
-        else:
-            self.epsilon = None
-
         if self.seed is not None and self.seed != '0':
             self.seed = int(self.seed)
         else:
             self.seed = None
-
-        if self.verbose is not None and self.verbose != '0':
-            self.verbose = int(self.verbose)
-        else:
-            self.verbose = None
 
         if self.l1_ratio < 0 or self.l1_ratio > 1:
             raise ValueError(
@@ -1015,10 +1000,10 @@ class SGDRegressorOperation(RegressionOperation):
             y = {input_data}[{label}].values.tolist()
             {model} = SGDRegressor(alpha={alpha}, l1_ratio={l1_ratio}, max_iter={max_iter}, tol={tol}, 
                                     random_state={seed}, epsilon={epsilon}, early_stopping={early_stopping}, 
-                                    validation_fraction={validation_fraction}, learning_rate={learning_rate}, 
-                                    power_t={power_t}, loss={loss}, n_iter_no_change={n_iter_no_change}, 
-                                    penalty={penalty}, fit_intercept={fit_intercept}, eta0={eta0}, 
-                                    warm_start={warm_start}, verbose=s{verbose}, average={average}, shuffle={shuffle})
+                                    validation_fraction={validation_fraction}, learning_rate='{learning_rate}', 
+                                    power_t={power_t}, loss='{loss}', n_iter_no_change={n_iter_no_change}, 
+                                    penalty='{penalty}', fit_intercept={fit_intercept}, eta0={eta0}, 
+                                    warm_start={warm_start}, verbose={verbose}, average={average}, shuffle={shuffle})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
             """).format(alpha=self.alpha,

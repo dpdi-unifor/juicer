@@ -421,20 +421,23 @@ class IsotonicRegressionOperation(RegressionOperation):
                 _("Parameter '{}' must be x<2 for task {}").format(
                     self.FEATURES_PARAM, self.__class__))
 
+        if self.y_min is not None and self.y_min != '0':
+            self.y_min = float(self.y_min)
+        else:
+            self.y_min = None
+
+        if self.y_max is not None and self.y_max != '0':
+            self.y_max = float(self.y_max)
+        else:
+            self.y_max = None
+
     def generate_code(self):
         code = dedent("""
         {output_data} = {input_data}.copy()        
         X_train = np.array({input_data}[{columns}].values.tolist()).flatten()
         y = np.array({input_data}[{label}].values.tolist()).flatten()
-        if {min} != None and {max} != None:
-            {model} = IsotonicRegression(min=float({min}), max=float({max}), increasing={isotonic}, 
-            out_of_bounds='{bounds}')
-        elif {min} != None:
-            {model} = IsotonicRegression(min={min}, increasing={isotonic}, out_of_bounds='{bounds}')
-        elif {max} != None:
-            {model} = IsotonicRegression(max=float({max}), increasing={isotonic}, out_of_bounds='{bounds}')
-        else:
-            {model} = IsotonicRegression(increasing={isotonic}, out_of_bounds='{bounds}')
+        {model} = IsotonicRegression(min=float({min}), max=float({max}), increasing={isotonic}, 
+                                     out_of_bounds='{bounds}')
         {model}.fit(X_train, y)          
         {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
         """).format(output_data=self.output,

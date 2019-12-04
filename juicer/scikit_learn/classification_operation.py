@@ -825,6 +825,11 @@ class PerceptronClassifierOperation(Operation):
         self.shuffle = True if int(self.shuffle) == 1 else False
         self.early_stopping = True if int(self.early_stopping) == 1 else False
 
+        if self.validation_fraction < 0 or self.validation_fraction > 1:
+            raise ValueError(
+                _("Parameter '{}' must be 0 <= x =< 1 for task {}").format(
+                    self.VALIDATION_FRACTION_PARAM, self.__class__))
+
     def generate_code(self):
         """Generate code."""
         code = """

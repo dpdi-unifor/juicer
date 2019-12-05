@@ -217,9 +217,7 @@ class GBTClassifierOperation(Operation):
     MIN_IMPURITY_DECREASE_PARAM = 'min_impurity_decrease'
     INIT_PARAM = 'init'
     MAX_FEATURES_PARAM = 'max_features'
-    VERBOSE_PARAM = 'verbose'
     MAX_LEAF_NODES_PARAM = 'max_leaf_nodes'
-    WARM_START_PARAM = 'warm_start'
     PRESORT_PARAM = 'presort'
     VALIDATION_FRACTION_PARAM = 'validation_fraction'
     N_ITER_NO_CHANGE_PARAM = 'n_iter_no_change'
@@ -260,9 +258,7 @@ class GBTClassifierOperation(Operation):
             self.min_impurity_decrease = float(parameters.get(self.MIN_IMPURITY_DECREASE_PARAM, 0) or 0)
             self.init = parameters.get(self.INIT_PARAM, 'None') or 'None'
             self.max_features = parameters.get(self.MAX_FEATURES_PARAM, None) or None
-            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0) or 0)
             self.max_leaf_nodes = parameters.get(self.MAX_LEAF_NODES_PARAM, None) or None
-            self.warm_start = int(parameters.get(self.WARM_START_PARAM, 0) or 0)
             self.presort = parameters.get(self.PRESORT_PARAM, 'auto') or 'auto'
             self.validation_fraction = float(parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1) or 0.1)
             self.n_iter_no_change = parameters.get(self.N_ITER_NO_CHANGE_PARAM, None) or None
@@ -306,7 +302,6 @@ class GBTClassifierOperation(Operation):
             self.n_iter_no_change = int(self.n_iter_no_change)
         else:
             self.n_iter_no_change = None
-        self.warm_start = True if int(self.warm_start) == 1 else False
         if self.validation_fraction < 0 or self.validation_fraction > 1:
             raise ValueError(
                 _("Parameter '{}' must be 0 <= x =< 1 for task {}").format(
@@ -324,8 +319,8 @@ class GBTClassifierOperation(Operation):
                                                   random_state={seed}, subsample={subsample}, criterion='{criterion}',
                                                   min_weight_fraction_leaf={min_weight_fraction_leaf}, 
                                                   min_impurity_decrease={min_impurity_decrease}, init={init},
-                                                  max_features={max_features}, verbose={verbose}, 
-                                                  max_leaf_nodes={max_leaf_nodes}, warm_start={warm_start}, 
+                                                  max_features={max_features}, verbose=False, 
+                                                  max_leaf_nodes={max_leaf_nodes}, warm_start=False, 
                                                   presort='{presort}', validation_fraction={validation_fraction}, 
                                                   n_iter_no_change={n_iter_no_change}, tol={tol})
             {model}.fit(X_train, y)          
@@ -349,9 +344,7 @@ class GBTClassifierOperation(Operation):
                        min_impurity_decrease=self.min_impurity_decrease,
                        init=self.init,
                        max_features=self.max_features,
-                       verbose=self.verbose,
                        max_leaf_nodes=self.max_leaf_nodes,
-                       warm_start=self.warm_start,
                        presort=self.presort,
                        validation_fraction=self.validation_fraction,
                        n_iter_no_change=self.n_iter_no_change,
@@ -525,6 +518,23 @@ class MLPClassifierOperation(Operation):
     MAX_ITER_PARAM = 'max_iter'
     TOLERANCE_PARAM = 'tol'
     SEED_PARAM = 'seed'
+    BATCH_SIZE_PARAM = 'batch_size'
+    LEARNING_RATE_PRAM = 'learning_rate'
+    LEARNING_RATE_INIT_PRAM = 'learning_rate_init'
+    POWER_T_PARAM = 'power_t'
+    SHUFFLE_PARAM = 'shuffle'
+    MOMENTUM_PARAM = 'momentum'
+    NESTEROVS_MOMENTUM_PARAM = 'nesterovs_momentum'
+    EARLY_STOPPING_PARAM = 'early_stopping'
+    VALIDATION_FRACTION_PARAM = 'validation_fraction'
+    BETA_1_PARAM = 'beta1'
+    BETA_2_PARAM = 'beta2'
+    EPSILON_PARAM = 'epsilon'
+    N_ITER_NO_CHANGE_PARAM = 'n_iter_no_change'
+    MAX_FUN_PARAM = 'max_fun'
+    FEATURES_PARAM = 'features'
+    LABEL_PARAM = 'label'
+    PREDICTION_PARAM = 'prediction'
 
     SOLVER_PARAM_ADAM = 'adam'
     SOLVER_PARAM_LBFGS = 'lbfgs'
@@ -538,58 +548,173 @@ class MLPClassifierOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = len(named_outputs) > 0
-        if self.has_code:
-            self.output = \
-                named_outputs.get('algorithm',
-                                  'algorithm_tmp_{}'.format(self.order))
+        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
 
-            self.hidden_layers = parameters.get(self.HIDDEN_LAYER_SIZES_PARAM,
-                                                '(1,100,1)') or '(1,100,1)'
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+
+        self.input_port = self.named_inputs.get(
+            'train input data', 'input_data_{}'.format(self.order))
+        if self.has_code:
+            self.add_functions_required = ""
+            self.hidden_layers = parameters.get(self.HIDDEN_LAYER_SIZES_PARAM, '(1,100,1)') or '(1,100,1)'
             self.hidden_layers = \
                 self.hidden_layers.replace("(", "").replace(")", "")
-            if not bool(re.match('(\d+,)+\d*', self.hidden_layers)):
-                raise ValueError(
-                        _("Parameter '{}' must be a tuple with the size "
-                          "of each layer for task {}").format(
-                                self.HIDDEN_LAYER_SIZES_PARAM, self.__class__))
-
             self.activation = parameters.get(
                     self.ACTIVATION_PARAM,
                     self.ACTIVATION_PARAM_RELU) or self.ACTIVATION_PARAM_RELU
-
             self.solver = parameters.get(
                     self.SOLVER_PARAM,
-                    self.SOLVER_PARAM_ADAM) or self.SOLVER_PARAM_LINEAR
-
+                    self.SOLVER_PARAM_ADAM) or self.SOLVER_PARAM_ADAM
             self.alpha = parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001
             self.alpha = abs(float(self.alpha))
-
             self.max_iter = parameters.get(self.MAX_ITER_PARAM, 200) or 200
             self.max_iter = abs(int(self.max_iter))
-
             self.tol = parameters.get(self.TOLERANCE_PARAM, 0.0001) or 0.0001
             self.tol = abs(float(self.tol))
+            self.seed = parameters.get(self.SEED_PARAM, None) or None
 
-            self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
+            self.batch_size = parameters.get(self.BATCH_SIZE_PARAM, 'auto') or 'auto'
+            self.learning_rate = parameters.get(self.LEARNING_RATE_PRAM, 'constant') or 'constant'
+            self.learning_rate_init = float(parameters.get(self.LEARNING_RATE_INIT_PRAM, 0.001) or 0.001)
+            self.power_t = float(parameters.get(self.POWER_T_PARAM, 0.5) or 0.5)
+            self.shuffle = int(parameters.get(self.SHUFFLE_PARAM, 1) or 1)
+            self.momentum = float(parameters.get(self.MOMENTUM_PARAM, 0.9) or 0.9)
+            self.nesterovs_momentum = int(parameters.get(self.NESTEROVS_MOMENTUM_PARAM, 1) or 1)
+            self.early_stopping = int(parameters.get(self.EARLY_STOPPING_PARAM, 0) or 0)
+            self.validation_fraction = float(parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1) or 0.1)
+            self.beta1 = float(parameters.get(self.BETA_1_PARAM, 0.9) or 0.9)
+            self.beta2 = float(parameters.get(self.BETA_2_PARAM, 0.999) or 0.999)
+            self.epsilon = float(parameters.get(self.EPSILON_PARAM, 1e-8) or 1e-8)
+            self.n_iter_no_change = int(parameters.get(self.N_ITER_NO_CHANGE_PARAM, 10) or 10)
+            self.max_fun = int(parameters.get(self.MAX_FUN_PARAM, 15000) or 15000)
+            self.features = parameters['features']
+            self.label = parameters.get(self.LABEL_PARAM, None)
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
 
             self.has_import = \
                 "from sklearn.neural_network import MLPClassifier\n"
 
+            self.input_treatment()
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
+    def input_treatment(self):
+        self.shuffle = True if int(self.shuffle) == 1 else False
+        self.nesterovs_momentum = True if int(self.nesterovs_momentum) == 1 else False
+        self.early_stopping = True if int(self.early_stopping) == 1 else False
+
+        if self.batch_size != 'auto':
+            self.batch_size = int(self.batch_size)
+
+        if self.momentum < 0 or self.momentum > 1:
+            raise ValueError(
+                _("Parameter '{}' must be x between 0 and 1 for task {}").format(
+                    self.MOMENTUM_PARAM, self.__class__))
+
+        if self.validation_fraction < 0 or self.validation_fraction > 1:
+            raise ValueError(
+                _("Parameter '{}' must be x between 0 and 1 for task {}").format(
+                    self.VALIDATION_FRACTION_PARAM, self.__class__))
+
+        if self.beta1 < 0 or self.beta1 >= 1:
+            raise ValueError(
+                _("Parameter '{}' must be in [0, 1) for task {}").format(
+                    self.BETA_1_PARAM, self.__class__))
+
+        if self.beta2 < 0 or self.beta2 >= 1:
+            raise ValueError(
+                _("Parameter '{}' must be in [0, 1) for task {}").format(
+                    self.BETA_2_PARAM, self.__class__))
+
+        if not bool(re.match('(\d+,)+\d*', self.hidden_layers)):
+            raise ValueError(
+                _("Parameter '{}' must be a tuple with the size "
+                  "of each layer for task {}").format(
+                    self.HIDDEN_LAYER_SIZES_PARAM, self.__class__))
+
+        functions_required = ["""hidden_layers={hidden_layers}""".format(hidden_layers=self.hidden_layers)]
+
+        self.activation = """activation='{activation}'""".format(activation=self.activation)
+        functions_required.append(self.activation)
+
+        self.solver = """solver='{solver}'""".format(solver=self.solver)
+        functions_required.append(self.solver)
+
+        self.alpha = """alpha={alpha}""".format(alpha=self.alpha)
+        functions_required.append(self.alpha)
+
+        self.max_iter = """max_iter={max_iter}""".format(max_iter=self.max_iter)
+        functions_required.append(self.max_iter)
+
+        self.tol = """tol={tol}""".format(tol=self.tol)
+        functions_required.append(self.tol)
+
+        self.seed = """seed='{seed}'""".format(seed=self.seed)
+        functions_required.append(self.seed)
+
+        if self.solver != 'lbfgs':
+            self.batch_size = """batch_size='{batch_size}'""".format(batch_size=self.batch_size)
+            functions_required.append(self.batch_size)
+
+        if self.solver == 'sgd':
+            self.learning_rate = """learning_rate='{learning_rate}'""".format(learning_rate=self.learning_rate)
+            functions_required.append(self.learning_rate)
+            if self.momentum > 0:
+                self.nesterovs_momentum = """nesterovs_momentum={nesterovs_momentum}""".format(
+                    nesterovs_momentum=self.nesterovs_momentum)
+                functions_required.append(self.nesterovs_momentum)
+        if self.solver == 'sgd' or self.solver == 'adam':
+            self.learning_rate_init = """learning_rate_init={learning_rate_init}""".format(
+                learning_rate_init=self.learning_rate_init)
+            functions_required.append(self.learning_rate_init)
+
+            self.shuffle = """shuffle={shuffle}""".format(shuffle=self.shuffle)
+            functions_required.append(self.shuffle)
+
+            self.early_stopping = """early_stopping={early_stopping}""".format(early_stopping=self.early_stopping)
+            functions_required.append(self.early_stopping)
+
+            self.n_iter_no_change = """n_iter_no_change={n_iter_no_change}""".format(
+                n_iter_no_change=self.n_iter_no_change)
+            functions_required.append(self.n_iter_no_change)
+        if self.early_stopping == 1:
+            self.validation_fraction = """validation_fraction={validation_fraction}""".format(
+                validation_fraction=self.validation_fraction)
+            functions_required.append(self.validation_fraction)
+        if self.solver == 'adam':
+            self.beta1 = """beta1={beta1}""".format(beta1=self.beta1)
+            functions_required.append(self.beta1)
+
+            self.beta2 = """beta2={beta2}""".format(beta2=self.beta2)
+            functions_required.append(self.beta2)
+        if self.solver == 'lbfgs':
+            self.max_fun = """max_fun={max_fun}""".format(max_fun=self.max_fun)
+            functions_required.append(self.max_fun)
+
     def generate_code(self):
         """Generate code."""
         code = """
-            {output} = MLPClassifier(hidden_layer_sizes=({hidden_layers}), 
-            activation='{activation}', solver='{solver}', alpha={alpha}, 
-            max_iter={max_iter}, random_state={seed}, tol={tol})
-            """.format(tol=self.tol,
-                       alpha=self.alpha,
-                       activation=self.activation,
-                       hidden_layers=self.hidden_layers,
-                       max_iter=self.max_iter,
-                       seed=self.seed,
-                       solver=self.solver,
-                       output=self.output)
+            {output_data} = {input_data}.copy()            
+            X_train = {input_data}[{columns}].values.tolist()
+            y = {input_data}[{label}].values.tolist()
+            {model} = MLPClassifier({add_functions_required})
+            {model}.fit(X_train, y)          
+            {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
+            """.format(output_data=self.output,
+                       prediction=self.prediction,
+                       columns=self.features,
+                       model=self.model,
+                       input_data=self.input_port,
+                       label=self.label,
+                       add_functions_required=self.add_functions_required)
         return dedent(code)
 
 
@@ -744,7 +869,6 @@ class PerceptronClassifierOperation(Operation):
     VALIDATION_FRACTION_PARAM = 'validation_fraction'
     N_ITER_NO_CHANGE_PARAM = 'n_iter_no_change'
     CLASS_WEIGHT_PARAM = 'class_weight'
-    WARM_START_PARAM = 'warm_start'
     PREDICTION_PARAM = 'prediction'
     LABEL_PARAM = 'label'
     FEATURES_PARAM = 'features'
@@ -769,10 +893,6 @@ class PerceptronClassifierOperation(Operation):
             'train input data', 'input_data_{}'.format(self.order))
 
         if self.has_code:
-            self.output = \
-                named_outputs.get('algorithm',
-                                  'algorithm_tmp_{}'.format(self.order))
-
             self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 1000) or 1000)
             self.alpha = float(parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001)
             self.tol = parameters.get(self.TOLERANCE_PARAM, 0.001) or 0.001
@@ -790,7 +910,6 @@ class PerceptronClassifierOperation(Operation):
             self.validation_fraction = float(parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1) or 0.1)
             self.n_iter_no_change = int(parameters.get(self.N_ITER_NO_CHANGE_PARAM, 5) or 5)
             self.class_weight = parameters.get(self.CLASS_WEIGHT_PARAM, None) or None
-            self.warm_start = int(parameters.get(self.WARM_START_PARAM, 0) or 0)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
             self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
@@ -821,7 +940,6 @@ class PerceptronClassifierOperation(Operation):
         else:
             self.n_jobs = None
 
-        self.warm_start = True if int(self.warm_start) == 1 else False
         self.shuffle = True if int(self.shuffle) == 1 else False
         self.early_stopping = True if int(self.early_stopping) == 1 else False
 
@@ -836,11 +954,18 @@ class PerceptronClassifierOperation(Operation):
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{features}].values.tolist()
             y = {input_data}[{label}].values.tolist()
-            {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, random_state={seed},
-                                 penalty='{penalty}', fit_intercept={fit_intercept}, verbose={verbose}, eta0={eta0},
-                                 n_jobs={n_jobs}, early_stopping={early_stopping}, 
-                                 validation_fraction={validation_fraction}, n_iter_no_change={n_iter_no_change}, 
-                                 class_weight={class_weight}, warm_start={warm_start})
+            if {early_stopping} == 1:
+                {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
+                                      random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 
+                                      verbose={verbose}, eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
+                                      validation_fraction={validation_fraction}, n_iter_no_change={n_iter_no_change}, 
+                                      class_weight={class_weight}, warm_start=False)
+            else:
+                {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
+                                      random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 
+                                      verbose={verbose}, eta0={eta0}, n_jobs={n_jobs}, early_stopping={early_stopping}, 
+                                      n_iter_no_change={n_iter_no_change}, class_weight={class_weight}, 
+                                      warm_start=False)
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
             """.format(tol=self.tol,
@@ -862,8 +987,7 @@ class PerceptronClassifierOperation(Operation):
                        early_stopping=self.early_stopping,
                        validation_fraction=self.validation_fraction,
                        n_iter_no_change=self.n_iter_no_change,
-                       class_weight=self.class_weight,
-                       warm_start=self.warm_start)
+                       class_weight=self.class_weight)
         return dedent(code)
 
 

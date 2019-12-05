@@ -77,9 +77,15 @@ class OutlierDetectionOperation(Operation):
 
         code = """
             {output_data} = {input}.copy()
-            clf = LocalOutlierFactor(n_neighbors={number_neighbors}, contamination={contamination}, 
-                                         metric="{metric}", algorithm="{algorithm}", n_jobs={n_jobs}, 
-                                         leaf_size={leaf_size}, novelty={novelty}, p={p}, metric_params={metric_params})
+            if {metric} == 'minkowski':
+                clf = LocalOutlierFactor(n_neighbors={number_neighbors}, contamination={contamination}, 
+                                             metric="{metric}", algorithm="{algorithm}", n_jobs={n_jobs}, 
+                                             leaf_size={leaf_size}, novelty={novelty}, p={p},
+                                             metric_params={metric_params})
+            else:
+                clf = LocalOutlierFactor(n_neighbors={number_neighbors}, contamination={contamination}, 
+                                             metric="{metric}", algorithm="{algorithm}", n_jobs={n_jobs}, 
+                                             leaf_size={leaf_size}, novelty={novelty}, metric_params={metric_params})
             X = {input}.values.tolist()
             p = clf.fit_predict(X).astype(float)
             clf2 = clf.negative_outlier_factor_ 

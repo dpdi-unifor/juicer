@@ -117,7 +117,6 @@ class GradientBoostingRegressorOperation(RegressionOperation):
     MIN_IMPURITY_DECREASE_PARAM = 'min_impurity_decrease'
     RANDOM_STATE_PARAM = 'random_state'
     VERBOSE_PARAM = 'verbose'
-    WARM_START_PARAM = 'warm_start'
     PREDICTION_PARAM = 'prediction'
     LABEL_PARAM = 'label'
     FEATURES_PARAM = 'features'
@@ -158,7 +157,6 @@ class GradientBoostingRegressorOperation(RegressionOperation):
             self.min_impurity_decrease = float(parameters.get(self.MIN_IMPURITY_DECREASE_PARAM, 0) or 0)
             self.random_state = parameters.get(self.RANDOM_STATE_PARAM, None)
             self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0) or 0)
-            self.warm_start = int(parameters.get(self.WARM_START_PARAM, 0) or 0)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
             self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
@@ -211,7 +209,6 @@ class GradientBoostingRegressorOperation(RegressionOperation):
             self.n_iter_no_change = int(self.n_iter_no_change)
         else:
             self.n_iter_no_change = None
-        self.warm_start = True if int(self.warm_start) == 1 else False
         self.presort = True if int(self.presort) == 1 else False
         if self.validation_fraction < 0 or self.validation_fraction > 1:
             raise ValueError(
@@ -232,7 +229,7 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                                                     min_impurity_decrease={min_impurity_decrease}, 
                                                     random_state={random_state}, max_features={max_features}, 
                                                     alpha={alpha}, verbose={verbose}, max_leaf_nodes={max_leaf_nodes}, 
-                                                    warm_start={warm_start}, presort={presort}, 
+                                                    warm_start=False, presort={presort}, 
                                                     validation_fraction={validation_fraction}, 
                                                     n_iter_no_change={n_iter_no_change}, tol={tol})
             {model}.fit(X_train, y)          
@@ -255,7 +252,6 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                        alpha=self.alpha,
                        verbose=self.verbose,
                        max_leaf_nodes=self.max_leaf_nodes,
-                       warm_start=self.warm_start,
                        presort=self.presort,
                        validation_fraction=self.validation_fraction,
                        n_iter_no_change=self.n_iter_no_change,
@@ -276,7 +272,6 @@ class HuberRegressorOperation(RegressionOperation):
     MAX_ITER_PARAM = 'max_iter'
     ALPHA_PARAM = 'alpha'
     TOLERANCE_PARAM = 'tol'
-    WARM_START_PARAM = 'warm_start'
     FIT_INTERCEPT_PARAM = 'fit_intercept'
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
@@ -303,7 +298,6 @@ class HuberRegressorOperation(RegressionOperation):
             self.alpha = float(parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001)
             self.tol = parameters.get(self.TOLERANCE_PARAM, 0.00001) or 0.00001
             self.tol = abs(float(self.tol))
-            self.warm_start = int(parameters.get(self.WARM_START_PARAM, 0) or 0)
             self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_PARAM, 1) or 1)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
@@ -335,7 +329,6 @@ class HuberRegressorOperation(RegressionOperation):
         return sep.join([self.output, self.model])
 
     def input_treatment(self):
-        self.warm_start = True if int(self.warm_start) == 1 else False
         self.fit_intercept = True if int(self.fit_intercept) == 1 else False
 
     def generate_code(self):
@@ -343,7 +336,8 @@ class HuberRegressorOperation(RegressionOperation):
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{features}].values.tolist()
             y = {input_data}[{label}].values.tolist()
-            {model} = HuberRegressor(epsilon={epsilon}, max_iter={max_iter}, alpha={alpha}, tol={tol})
+            {model} = HuberRegressor(epsilon={epsilon}, max_iter={max_iter}, alpha={alpha}, tol={tol}, 
+                                     fit_intercept={fit_intercept}, warm_start=False)
             {model}.fit(X_train, y)
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
             """).format(output_data=self.output,
@@ -353,7 +347,6 @@ class HuberRegressorOperation(RegressionOperation):
                         tol=self.tol,
                         input_data=self.input_port,
                         model=self.model,
-                        warm_start=self.warm_start,
                         fit_intercept=self.fit_intercept,
                         features=self.features,
                         label=self.label,
@@ -577,7 +570,6 @@ class MLPRegressorOperation(Operation):
     POWER_T_PARAM = 'power_t'
     SHUFFLE_PARAM = 'shuffle'
     N_ITER_NO_CHANGE_PARAM = 'n_iter_no_change'
-    WARM_START_PARAM = 'warm_start'
     MOMENTUM_PARAM = 'momentum'
     NESTEROVS_MOMENTUM_PARAM = 'nesterovs_momentum'
     EARLY_STOPPING_PARAM = 'early_stopping'
@@ -632,12 +624,11 @@ class MLPRegressorOperation(Operation):
             self.learning_rate = parameters.get(self.LEARNING_RATE_PARAM, 'constant')
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
-            self. prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
             self.learning_rate_init = float(parameters.get(self.LEARNING_RATE_INIT_PARAM, 0.001))
             self.power_t = float(parameters.get(self.POWER_T_PARAM, 0.5))
             self.shuffle = int(parameters.get(self.SHUFFLE_PARAM, 1))
             self.n_iter_no_change = int(parameters.get(self.N_ITER_NO_CHANGE_PARAM, 10))
-            self.warm_start = int(parameters.get(self.WARM_START_PARAM, 0))
             self.momentum = float(parameters.get(self.MOMENTUM_PARAM, 0.9))
             self.nesterovs_momentum = int(parameters.get(self.NESTEROVS_MOMENTUM_PARAM, 1))
             self.early_stopping = int(parameters.get(self.EARLY_STOPPING_PARAM, 0))
@@ -661,8 +652,6 @@ class MLPRegressorOperation(Operation):
     def input_treatment(self):
         self.shuffle = True if int(self.shuffle) == 1 else False
 
-        self.warm_start = True if int(self.warm_start) == 1 else False
-
         self.nesterovs_momentum = True if int(self.nesterovs_momentum) == 1 else False
 
         self.early_stopping = True if int(self.early_stopping) == 1 else False
@@ -672,14 +661,14 @@ class MLPRegressorOperation(Operation):
                 _("Parameter '{}' must be x between 0 and 1 for task {}").format(
                     self.MOMENTUM_PARAM, self.__class__))
 
-        if self.beta_1 < 0 or self.momentum >= 1:
+        if self.beta_1 < 0 or self.beta_1 >= 1:
             raise ValueError(
-                _("Parameter '{}' must be x between 0 and 1 for task {}").format(
+                _("Parameter '{}' must be in [0, 1) for task {}").format(
                     self.BETA_1_PARAM, self.__class__))
 
-        if self.beta_2 < 0 or self.momentum >= 1:
+        if self.beta_2 < 0 or self.beta_2 >= 1:
             raise ValueError(
-                _("Parameter '{}' must be x between 0 and 1 for task {}").format(
+                _("Parameter '{}' must be in [0, 1) for task {}").format(
                     self.BETA_2_PARAM, self.__class__))
 
     def generate_code(self):
@@ -692,7 +681,7 @@ class MLPRegressorOperation(Operation):
                                     alpha={alpha}, max_iter={max_iter}, random_state={seed}, tol={tol}, 
                                     batch_size='{batch_size}', learning_rate='{learning_rate}', 
                                     learning_rate_init={learning_rate_init}, power_t={power_t}, shuffle={shuffle}, 
-                                    n_iter_no_change={n_iter_no_change}, warm_start={warm_start}, momentum={momentum}, 
+                                    n_iter_no_change={n_iter_no_change}, warm_start=False, momentum={momentum}, 
                                     nesterovs_momentum={nesterovs_momentum}, early_stopping={early_stopping}, 
                                     validation_fraction={validation_fraction}, beta_1={beta_1}, beta_2={beta_2}, 
                                     epsilon={epsilon})
@@ -717,7 +706,6 @@ class MLPRegressorOperation(Operation):
                        power_t=self.power_t,
                        shuffle=self.shuffle,
                        n_iter_no_change=self.n_iter_no_change,
-                       warm_start=self.warm_start,
                        momentum=self.momentum,
                        nesterovs_momentum=self.nesterovs_momentum,
                        early_stopping=self.early_stopping,
@@ -750,7 +738,6 @@ class RandomForestRegressorOperation(RegressionOperation):
     N_JOBS_PARAM = 'n_jobs'
     RANDOM_STATE_PARAM = 'random_state'
     VERBOSE_PARAM = 'verbose'
-    WARM_START_PARAM = 'warm_start'
     PREDICTION_PARAM = 'prediction'
     LABEL_PARAM = 'label'
     FEATURES_PARAM = 'features'
@@ -785,7 +772,6 @@ class RandomForestRegressorOperation(RegressionOperation):
             self.n_jobs = int(parameters.get(self.N_JOBS_PARAM, 0) or 0)
             self.random_state = parameters.get(self.RANDOM_STATE_PARAM, None)
             self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0) or 0)
-            self.warm_start = int(parameters.get(self.WARM_START_PARAM, 0) or 0)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
             self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
@@ -829,8 +815,6 @@ class RandomForestRegressorOperation(RegressionOperation):
 
         self.oob_score = True if int(self.oob_score) == 1 else False
 
-        self.warm_start = True if int(self.warm_start) == 1 else False
-
         if self.max_depth is not None and self.max_depth != '0':
             self.max_depth = int(self.max_depth)
         else:
@@ -856,7 +840,7 @@ class RandomForestRegressorOperation(RegressionOperation):
                                             min_weight_fraction_leaf={min_weight_fraction_leaf},
                                             max_leaf_nodes={max_leaf_nodes}, 
                                             min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
-                                            oob_score={oob_score}, verbose={verbose}, warm_start={warm_start})
+                                            oob_score={oob_score}, verbose={verbose}, warm_start=False)
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
             """).format(n_estimators=self.n_estimators,
@@ -877,7 +861,6 @@ class RandomForestRegressorOperation(RegressionOperation):
                         bootstrap=self.bootstrap,
                         oob_score=self.oob_score,
                         verbose=self.verbose,
-                        warm_start=self.warm_start,
                         features=self.features,
                         label=self.label)
 
@@ -908,7 +891,6 @@ class SGDRegressorOperation(RegressionOperation):
     PENALTY_PARAM = 'penalty'
     FIT_INTERCEPT_PARAM = 'fit_intercept'
     ETA0_PARAM = 'eta0'
-    WARM_START_PARAM = 'warm_start'
     VERBOSE_PARAM = 'verbose'
     AVERAGE_PARAM = 'average'
     LEARNING_RATE_PARAM = 'learning_rate'
@@ -930,15 +912,19 @@ class SGDRegressorOperation(RegressionOperation):
             'train input data', 'input_data_{}'.format(self.order))
 
         if self.has_code:
+            self.add_functions_required = ""
             self.alpha = float(parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001)
             self.l1_ratio = float(parameters.get(self.ELASTIC_PARAM, 0.15) or 0.15)
             self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 1000) or 1000)
+            self.seed = parameters.get(self.SEED_PARAM, None)
+
             self.tol = parameters.get(self.TOLERANCE_PARAM, 0.001) or 0.001
             self.tol = abs(float(self.tol))
-            self.seed = parameters.get(self.SEED_PARAM, None)
+
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
             self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+
             self.power_t = float(parameters.get(self.POWER_T_PARAM, 0.5))
             self.early_stopping = int(parameters.get(self.EARLY_STOPPING, 0))
             self.validation_fraction = float(parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1))
@@ -948,7 +934,6 @@ class SGDRegressorOperation(RegressionOperation):
             self.penalty = parameters.get(self.PENALTY_PARAM, 'l2')
             self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_PARAM, 1))
             self.eta0 = float(parameters.get(self.ETA0_PARAM, 0.01))
-            self.warm_start = int(parameters.get(self.WARM_START_PARAM, 0))
             self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0))
             self.average = int(parameters.get(self.AVERAGE_PARAM, 1))
             self.learning_rate = parameters.get(self.LEARNING_RATE_PARAM, 'invscaling')
@@ -977,8 +962,6 @@ class SGDRegressorOperation(RegressionOperation):
     def input_treatment(self):
         self.early_stopping = True if int(self.early_stopping) == 1 else False
 
-        self.warm_start = True if int(self.warm_start) == 1 else False
-
         self.shuffle = True if int(self.shuffle) == 1 else False
 
         if self.seed is not None and self.seed != '0':
@@ -996,44 +979,60 @@ class SGDRegressorOperation(RegressionOperation):
                 _("Parameter '{}' must be 0 <= x =< 1 for task {}").format(
                     self.VALIDATION_FRACTION_PARAM, self.__class__))
 
+        functions_required = ["""loss='{loss}'""".format(loss=self.loss)]
+        self.power_t = """power_t={power_t}""".format(power_t=self.power_t)
+        functions_required.append(self.power_t)
+        self.early_stopping = """early_stopping={early_stopping}""".format(early_stopping=self.early_stopping)
+        functions_required.append(self.early_stopping)
+        self.n_iter_no_change = """n_iter_no_change={n_iter_no_change}""".format(n_iter_no_change=self.n_iter_no_change)
+        functions_required.append(self.n_iter_no_change)
+        self.penalty = """penalty='{penalty}'""".format(penalty=self.penalty)
+        functions_required.append(self.penalty)
+        self.fit_intercept = """fit_intercept={fit_intercept}""".format(fit_intercept=self.fit_intercept)
+        functions_required.append(self.fit_intercept)
+        self.verbose = """verbose={verbose}""".format(verbose=self.verbose)
+        functions_required.append(self.verbose)
+        self.average = """average={average}""".format(average=self.average)
+        functions_required.append(self.average)
+        self.learning_rate = """learning_rate='{learning_rate}'""".format(learning_rate=self.learning_rate)
+        functions_required.append(self.learning_rate)
+        self.shuffle = """shuffle={shuffle}""".format(shuffle=self.shuffle)
+        functions_required.append(self.shuffle)
+        self.alpha = """alpha={alpha}""".format(alpha=self.alpha)
+        functions_required.append(self.alpha)
+        self.l1_ratio = """l1_ratio={l1_ratio}""".format(l1_ratio=self.l1_ratio)
+        functions_required.append(self.l1_ratio)
+        self.max_iter = """max_iter={max_iter}""".format(max_iter=self.max_iter)
+        functions_required.append(self.max_iter)
+        self.seed = """seed={seed}""".format(seed=self.seed)
+        functions_required.append(self.seed)
+
+        if self.loss != 'squared_loss':
+            self.epsilon = """epsilon={epsilon}""".format(epsilon=self.epsilon)
+        functions_required.append(self.epsilon)
+        if self.learning_rate != 'optimal':
+            self.eta0 = """eta0={eta0}""".format(eta0=self.eta0)
+            functions_required.append(self.eta0)
+        if self.early_stopping == 1:
+            self.validation_fraction = """validation_fraction={validation_fraction}""".format(
+                validation_fraction=self.validation_fraction)
+            functions_required.append(self.validation_fraction)
+
     def generate_code(self):
         code = dedent("""
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{columns}].values.tolist()
             y = {input_data}[{label}].values.tolist()
-            {model} = SGDRegressor(alpha={alpha}, l1_ratio={l1_ratio}, max_iter={max_iter}, tol={tol}, 
-                                    random_state={seed}, epsilon={epsilon}, early_stopping={early_stopping}, 
-                                    validation_fraction={validation_fraction}, learning_rate='{learning_rate}', 
-                                    power_t={power_t}, loss='{loss}', n_iter_no_change={n_iter_no_change}, 
-                                    penalty='{penalty}', fit_intercept={fit_intercept}, eta0={eta0}, 
-                                    warm_start={warm_start}, verbose={verbose}, average={average}, shuffle={shuffle})
+            {model} = SGDRegressor({add_functions_required})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """).format(alpha=self.alpha,
-                        l1_ratio=self.l1_ratio,
-                        max_iter=self.max_iter,
-                        tol=self.tol,
-                        seed=self.seed,
-                        output_data=self.output,
+            """).format(output_data=self.output,
                         prediction=self.prediction,
                         columns=self.features,
                         model=self.model,
                         input_data=self.input_port,
                         label=self.label,
-                        epsilon=self.epsilon,
-                        early_stopping=self.early_stopping,
-                        validation_fraction=self.validation_fraction,
-                        learning_rate=self.learning_rate,
-                        power_t=self.power_t,
-                        loss=self.loss,
-                        n_iter_no_change=self.n_iter_no_change,
-                        penalty=self.penalty,
-                        fit_intercept=self.fit_intercept,
-                        eta0=self.eta0,
-                        warm_start=self.warm_start,
-                        verbose=self.verbose,
-                        average=self.average,
-                        shuffle=self.shuffle)
+                        add_functions_required=self.add_functions_required)
 
         return code
 

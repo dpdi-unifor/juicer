@@ -232,12 +232,24 @@ class KNNClassifierOperation(Operation):
 
 
 class LogisticRegressionOperation(Operation):
-
+    LABEL_PARAM = 'label'
+    PREDICTION_PARAM = 'prediction'
+    FEATURES_PARAM = 'features'
     TOLERANCE_PARAM = 'tol'
     REGULARIZATION_PARAM = 'regularization'
     MAX_ITER_PARAM = 'max_iter'
     SEED_PARAM = 'seed'
     SOLVER_PARAM = 'solver'
+    PENALTY_PARAM = 'penalty'
+    DUAL_PARAM = 'dual'
+    FIT_INTERCEPT_PARAM = 'fit_intercept'
+    INTERCEPT_SCALING_PARAM = 'intercept_scaling'
+    MULTI_CLASS_PARAM = 'multi_class'
+    WARM_START_PARAM = 'warm_start'
+    N_JOBS_PARAM = 'n_jobs'
+    L1_RATIO_PARAM = 'l1_ratio'
+    VERBOSE_PARAM = 'verbose'
+    MULTI_CLASS_PARAM = 'multi_class'
 
     SOLVER_PARAM_NEWTON = 'newton-cg'
     SOLVER_PARAM_LBFGS = 'lbfgs'
@@ -250,44 +262,125 @@ class LogisticRegressionOperation(Operation):
 
         self.has_code = len(named_outputs) > 0
         if self.has_code:
-            self.output = \
-                named_outputs.get('algorithm',
-                                  'algorithm_tmp_{}'.format(self.order))
+            self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
 
-            self.tol = self.parameters.get(self.TOLERANCE_PARAM,
-                                           0.0001) or 0.0001
+            self.input_port = self.named_inputs.get(
+            'train input data', 'input_data_{}'.format(self.order))
+
+            self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+
+            if self.LABEL_PARAM not in parameters:
+                msg = _("Parameters '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.LABEL_PARAM,
+                    self.__class__.__name__))
+            else: self.label = parameters.get(self.LABEL_PARAM, None)
+
+            if self.FEATURES_PARAM not in parameters:
+                msg = _("Parameters '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.FEATURES_PARAM,
+                    self.__class__.__name__))
+            else: self.features = parameters.get(self.FEATURES_PARAM, None)
+
+            self.prediction_column = parameters.get(self.PREDICTION_PARAM,
+                                             'prediction')
+
+            self.tol = float(self.parameters.get(self.TOLERANCE_PARAM,
+                                           0.0001) or 0.0001)
             self.tol = abs(float(self.tol))
-            self.regularization = self.parameters.get(self.REGULARIZATION_PARAM,
-                                                      1.0) or 1.0
-            self.max_iter = self.parameters.get(self.MAX_ITER_PARAM,
-                                                100) or 100
-            self.seed = self.parameters.get(self.SEED_PARAM, 'None') or 'None'
+            self.regularization = float(self.parameters.get(self.REGULARIZATION_PARAM,
+                                                      1.0)) or 1.0
+            self.max_iter = int(self.parameters.get(self.MAX_ITER_PARAM,
+                                                100)) or 100
+
+            seed_ = self.parameters.get(self.SEED_PARAM, None)
+            self.seed = int(seed_) if seed_ is not None else 'None'
+            
             self.solver = self.parameters.get(
                     self.SOLVER_PARAM, self.SOLVER_PARAM_LINEAR)\
                 or self.SOLVER_PARAM_LINEAR
 
-            vals = [self.regularization, self.max_iter]
-            atts = [self.REGULARIZATION_PARAM, self.MAX_ITER_PARAM]
+            self.penalty = parameters.get(self.PENALTY_PARAM,
+                                             'l2')
+
+            self.dual = int(parameters.get(self.DUAL_PARAM, 0)) == 1
+            self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_PARAM, 1)) == 1
+            self.intercept_scaling = float(parameters.get(self.INTERCEPT_SCALING_PARAM, 1.0))
+            self.warm_start = int(parameters.get(self.WARM_START_PARAM, 0)) == 1
+            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0))
+
+            n_jobs_ = parameters.get(self.N_JOBS_PARAM, None)
+            self.n_jobs = int(n_jobs_) if n_jobs_ is not None else 'None'
+
+            l1_ratio_param_ = parameters.get(self.L1_RATIO_PARAM, None)
+            if(l1_ratio_param_ is not None):
+                self.l1_ratio = float(l1_ratio_param_)
+                if(self.l1_ratio < 0 or self.l1_ratio > 1):
+                    raise ValueError(
+                            _("Parameter 'l1_ratio' must be 0 <= x <= 1 for task {}").format(
+                                    self.__class__))
+            else:
+                self.l1_ratio = 'None'
+
+
+            self.multi_class = parameters.get(self.MULTI_CLASS_PARAM, 'ovr') or 'ovr'
+
+            vals = [self.regularization, self.max_iter, self.n_jobs, self.verbose]
+            atts = [self.REGULARIZATION_PARAM, self.MAX_ITER_PARAM, self.N_JOBS_PARAM, self.VERBOSE_PARAM]
             for var, att in zip(vals, atts):
                 if var <= 0:
                     raise ValueError(
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
+            solver_dict = {
+                'newton-cg': ['l2', 'none'],
+                'lbfgs'    : ['l2', 'none'],
+                'liblinear': ['l1'],
+                'sag'      : ['l2', 'none'],
+                'saga'     : ['l2', 'none', 'l1', 'elasticnet']
+            }
+            if(self.penalty not in solver_dict[self.solver]):
+                raise ValueError(
+                    ("For '{}' solver, the penalty type must be in {} for task {}").format(
+                        self.solver, str(solver_dict[self.solver]), self.__class__))
+
             self.has_import = \
                 "from sklearn.linear_model import LogisticRegression\n"
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
 
     def generate_code(self):
         """Generate code."""
         code = """
-            {output} = LogisticRegression(tol={tol}, C={C}, max_iter={max_iter},
-            solver='{solver}', random_state={seed})
-            """.format(tol=self.tol,
-                       C=self.regularization,
-                       max_iter=self.max_iter,
-                       seed=self.seed,
-                       solver=self.solver,
-                       output=self.output)
+            {model} = LogisticRegression(tol={tol}, C={C}, max_iter={max_iter},
+            solver='{solver}', random_state={seed}, penalty='{penalty}', dual={dual},
+            fit_intercept={fit_intercept}, intercept_scaling={intercept_scaling}, 
+            multi_class='{multi_class}', verbose={verbose}, warm_start={warm_start}, 
+            n_jobs={n_jobs}, l1_ratio={l1_ratio})
+
+            X_train = {input}[{features}].values.tolist()
+            y = {input}[{label}].values.tolist()
+            {model}.fit(X_train, y)
+
+            {output} = {input}.copy()
+            {output}['{prediction_column}'] = {model}.predict(X_train).tolist()
+            """.format(tol=self.tol, C=self.regularization, max_iter=self.max_iter,
+                       seed=self.seed, solver=self.solver, penalty=self.penalty,
+                       dual=self.dual, fit_intercept=self.fit_intercept, 
+                       intercept_scaling=self.intercept_scaling, multi_class=self.multi_class,
+                       verbose=self.verbose, warm_start=self.warm_start, n_jobs=self.n_jobs,
+                       l1_ratio=self.l1_ratio, model=self.model, input=self.input_port,
+                       label=self.label, output=self.output, prediction_column=self.prediction_column, 
+                       features=self.features)
         return dedent(code)
 
 
@@ -609,12 +702,13 @@ class SvmClassifierOperation(Operation):
                     self.KERNEL_PARAM_RBF) or self.KERNEL_PARAM_RBF
             self.c = float(parameters.get(self.PENALTY_PARAM, 1.0) or 1.0)
 
-            self.gamma = float(parameters.get(self.GAMMA_PARAM, 1.0)) if parameters.get(self.GAMMA_PARAM, None) != None else "'auto'"
+            gamma_ = parameters.get(self.GAMMA_PARAM, None)
+            self.gamma = "'"+gamma_+"'" if gamma_ == 'auto' else (float(gamma_) if gamma_ is not None else "'auto'")
             self.coef0 = float(parameters.get(self.COEF0_PARAM, 0.0) or 0.0)
             self.shrinking = int(parameters.get(self.SHRINKING_PARAM, 1)) == 1
             self.probability = int(parameters.get(self.PROBABILITY_PARAM, 0)) == 1
             self.cache_size = float(parameters.get(self.CACHE_SIZE_PARAM, 200.0) or 200.0)
-            self.decision_function_shape = parameters.get(self.DECISION_FUNCTION_SHAPE_PARAM, 'ovr') or 'ovr'            
+            self.decision_function_shape = parameters.get(self.DECISION_FUNCTION_SHAPE_PARAM, 'ovr') or 'ovr'           
 
             vals = [self.degree, self.c, self.cache_size]
             atts = [self.DEGREE_PARAM, self.PENALTY_PARAM, self.CACHE_SIZE_PARAM]

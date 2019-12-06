@@ -1039,7 +1039,10 @@ class SplitKFoldOperation(Operation):
         if self.stratified:
             code = """
                 {output_data} = {input}.copy()
-                skf = StratifiedKFold(n_splits={n_splits}, shuffle={shuffle}, random_state={random_state})
+                if {shuffle}:
+                    skf = StratifiedKFold(n_splits={n_splits}, shuffle={shuffle}, random_state={random_state})
+                else:
+                    skf = StratifiedKFold(n_splits={n_splits}, shuffle={shuffle})
                 lista = []
                 j = 0
                 for train_index, test_index in skf.split({input}.values.tolist(), {input}['{column}'].values.tolist()):
@@ -1061,7 +1064,10 @@ class SplitKFoldOperation(Operation):
         else:
             code = """
                 {output_data} = {input}.copy()
-                kf = KFold(n_splits={n_splits}, shuffle={shuffle}, random_state={random_state})
+                if {shuffle}:
+                    kf = StratifiedKFold(n_splits={n_splits}, shuffle={shuffle}, random_state={random_state})
+                else:
+                    kf = StratifiedKFold(n_splits={n_splits}, shuffle={shuffle})
                 lista = []
                 j = 0
                 for train_index, test_index in kf.split({input}.values.tolist()):

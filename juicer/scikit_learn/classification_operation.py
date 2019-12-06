@@ -640,7 +640,7 @@ class MLPClassifierOperation(Operation):
                   "of each layer for task {}").format(
                     self.HIDDEN_LAYER_SIZES_PARAM, self.__class__))
 
-        functions_required = ["""hidden_layers={hidden_layers}""".format(hidden_layers=self.hidden_layers)]
+        functions_required = ["""layer_sizes={hidden_layers}""".format(hidden_layers=self.hidden_layers)]
 
         self.activation = """activation='{activation}'""".format(activation=self.activation)
         functions_required.append(self.activation)
@@ -667,6 +667,13 @@ class MLPClassifierOperation(Operation):
         if self.solver == 'sgd':
             self.learning_rate = """learning_rate='{learning_rate}'""".format(learning_rate=self.learning_rate)
             functions_required.append(self.learning_rate)
+
+            self.momentum = """momentum='{momentum}'""".format(momentum=self.momentum)
+            functions_required.append(self.momentum)
+
+            self.power_t = """power_t='{power_t}'""".format(power_t=self.power_t)
+            functions_required.append(self.power_t)
+
             if self.momentum > 0:
                 self.nesterovs_momentum = """nesterovs_momentum={nesterovs_momentum}""".format(
                     nesterovs_momentum=self.nesterovs_momentum)
@@ -695,6 +702,9 @@ class MLPClassifierOperation(Operation):
 
             self.beta2 = """beta2={beta2}""".format(beta2=self.beta2)
             functions_required.append(self.beta2)
+
+            self.epsilon = """epsilon={epsilon}""".format(epsilon=self.epsilon)
+            functions_required.append(self.epsilon)
         if self.solver == 'lbfgs':
             self.max_fun = """max_fun={max_fun}""".format(max_fun=self.max_fun)
             functions_required.append(self.max_fun)
@@ -764,11 +774,6 @@ class NaiveBayesClassifierOperation(Operation):
                     self.MODEL_TYPE_PARAM,
                     self.MODEL_TYPE_PARAM_M) or self.MODEL_TYPE_PARAM_M
 
-            if self.smoothing <= 0:
-                raise ValueError(
-                        _("Parameter '{}' must be x>0 for task {}").format(
-                                'smoothing', self.__class__))
-
             if self.model_type == self.MODEL_TYPE_PARAM_M:
                 self.has_import = \
                     "from sklearn.naive_bayes import MultinomialNB\n"
@@ -794,6 +799,11 @@ class NaiveBayesClassifierOperation(Operation):
 
         if self.priors != "None":
             self.priors = '[' + self.priors + ']'
+
+        if self.smoothing <= 0:
+            raise ValueError(
+                _("Parameter '{}' must be x>0 for task {}").format(
+                    'smoothing', self.__class__))
 
     def generate_code(self):
         """Generate code."""

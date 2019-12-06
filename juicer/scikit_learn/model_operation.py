@@ -290,15 +290,12 @@ class EvaluateModelOperation(Operation):
             
                 headers = {table_headers}
                 rows = [
-                    ['F1', f1_score(y_true, y_pred, average='weighted')],
-                    ['Weighted Precision', 
-                     precision_score(y_true, y_pred, average='weighted')],
                     ['Weighted Recall', 
                      recall_score(y_true, y_pred, average='weighted')],
                     ['Accuracy', accuracy_score(y_true, y_pred)],
                     ['Cohens kappa', cohen_kappa_score(y_true, y_pred)],
-                    ['Jaccard similarity coefficient score', 
-                     jaccard_similarity_score(y_true, y_pred)],
+                    ['Jaccard coefficient score', 
+                     jaccard_score(y_true, y_pred)],
                     ['Matthews correlation coefficient (MCC)', 
                      matthews_corrcoef(y_true, y_pred)],
                 ]

@@ -429,7 +429,7 @@ class IsotonicRegressionOperation(RegressionOperation):
         {output_data} = {input_data}.copy()        
         X_train = np.array({input_data}[{columns}].values.tolist()).flatten()
         y = np.array({input_data}[{label}].values.tolist()).flatten()
-        {model} = IsotonicRegression(min=float({min}), max=float({max}), increasing={isotonic}, 
+        {model} = IsotonicRegression(y_min={min}, y_max={max}, increasing={isotonic}, 
                                      out_of_bounds='{bounds}')
         {model}.fit(X_train, y)          
         {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -477,14 +477,11 @@ class LinearRegressionOperation(RegressionOperation):
 
         if self.has_code:
             self.alpha = float(parameters.get(self.ALPHA_PARAM, 1.0) or 1.0)
-            self.elastic = float(parameters.get(self.ELASTIC_NET_PARAM,
-                                          0.5) or 0.5)
-            self.normalize = self.parameters.get(self.NORMALIZE_PARAM,
-                                                 True) in (1, '1', 'true', True)
+            self.elastic = float(parameters.get(self.ELASTIC_NET_PARAM, 0.5) or 0.5)
+            self.normalize = self.parameters.get(self.NORMALIZE_PARAM, True) in (1, '1', 'true', True)
             self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 1000) or 1000)
-            self.tol = float(self.parameters.get(
-                    self.TOLERANCE_PARAM, 0.0001) or 0.0001)
-            self.tol = abs(float(self.tol))
+            self.tol = float(self.parameters.get( self.TOLERANCE_PARAM, 0.0001) or 0.0001)
+            self.tol = abs(self.tol)
             self.seed = self.parameters.get(self.SEED_PARAM, 'None') or 'None'
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
@@ -592,6 +589,7 @@ class MLPRegressorOperation(Operation):
             'train input data', 'input_data_{}'.format(self.order))
 
         if self.has_code:
+            self.add_functions_required = ""
             self.hidden_layers = parameters.get(self.HIDDEN_LAYER_SIZES_PARAM, '(1,100,1)') or '(1,100,1)'
             self.hidden_layers = \
                 self.hidden_layers.replace("(", "").replace(")", "")
@@ -671,48 +669,89 @@ class MLPRegressorOperation(Operation):
                 _("Parameter '{}' must be in [0, 1) for task {}").format(
                     self.BETA_2_PARAM, self.__class__))
 
+        functions_required = ["""layer_sizes={hidden_layers}""".format(hidden_layers=self.hidden_layers)]
+
+        self.activation = """activation='{activation}'""".format(activation=self.activation)
+        functions_required.append(self.activation)
+
+        self.solver = """solver='{solver}'""".format(solver=self.solver)
+        functions_required.append(self.solver)
+
+        self.alpha = """alpha={alpha}""".format(alpha=self.alpha)
+        functions_required.append(self.alpha)
+
+        self.max_iter = """max_iter={max_iter}""".format(max_iter=self.max_iter)
+        functions_required.append(self.max_iter)
+
+        self.tol = """tol={tol}""".format(tol=self.tol)
+        functions_required.append(self.tol)
+
+        self.seed = """seed='{seed}'""".format(seed=self.seed)
+        functions_required.append(self.seed)
+
+        self.batch_size = """batch_size='{batch_size}'""".format(batch_size=self.batch_size)
+        functions_required.append(self.batch_size)
+
+        if self.early_stopping == 1:
+            self.validation_fraction = """validation_fraction={validation_fraction}""".format(
+                validation_fraction=self.validation_fraction)
+            functions_required.append(self.validation_fraction)
+
+        if self.solver == 'adam':
+            self.beta_1 = """beta1={beta1}""".format(beta1=self.beta_1)
+            functions_required.append(self.beta_1)
+
+            self.beta_2 = """beta_2={beta2}""".format(beta2=self.beta_2)
+            functions_required.append(self.beta_2)
+
+            self.epsilon = """epsilon={epsilon}""".format(epsilon=self.epsilon)
+            functions_required.append(self.epsilon)
+
+        if self.solver == 'sgd':
+            self.learning_rate = """learning_rate='{learning_rate}'""".format(learning_rate=self.learning_rate)
+            functions_required.append(self.learning_rate)
+
+            self.power_t = """power_t='{power_t}'""".format(power_t=self.power_t)
+            functions_required.append(self.power_t)
+
+            self.momentum = """momentum='{momentum}'""".format(momentum=self.momentum)
+            functions_required.append(self.momentum)
+            if self.momentum > 0:
+                self.nesterovs_momentum = """nesterovs_momentum={nesterovs_momentum}""".format(
+                    nesterovs_momentum=self.nesterovs_momentum)
+            functions_required.append(self.nesterovs_momentum)
+
+        if self.solver == 'sgd' or self.solver == 'adam':
+            self.learning_rate_init = """learning_rate_init={learning_rate_init}""".format(
+                learning_rate_init=self.learning_rate_init)
+            functions_required.append(self.learning_rate_init)
+
+            self.shuffle = """shuffle={shuffle}""".format(shuffle=self.shuffle)
+            functions_required.append(self.shuffle)
+
+            self.n_iter_no_change = """n_iter_no_change={n_iter_no_change}""".format(
+                n_iter_no_change=self.n_iter_no_change)
+            functions_required.append(self.n_iter_no_change)
+
+            self.early_stopping = """early_stopping={early_stopping}""".format(early_stopping=self.early_stopping)
+            functions_required.append(self.early_stopping)
+
     def generate_code(self):
         """Generate code."""
         code = """
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{columns}].values.tolist()
             y = {input_data}[{label}].values.tolist()
-            {model} = MLPRegressor(hidden_layer_sizes=({hidden_layers}), activation='{activation}', solver='{solver}',
-                                    alpha={alpha}, max_iter={max_iter}, random_state={seed}, tol={tol}, 
-                                    batch_size='{batch_size}', learning_rate='{learning_rate}', 
-                                    learning_rate_init={learning_rate_init}, power_t={power_t}, shuffle={shuffle}, 
-                                    n_iter_no_change={n_iter_no_change}, warm_start=False, momentum={momentum}, 
-                                    nesterovs_momentum={nesterovs_momentum}, early_stopping={early_stopping}, 
-                                    validation_fraction={validation_fraction}, beta_1={beta_1}, beta_2={beta_2}, 
-                                    epsilon={epsilon})
+            {model} = MLPRegressor({add_functions_required})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
-            """.format(tol=self.tol,
-                       alpha=self.alpha,
-                       activation=self.activation,
-                       hidden_layers=self.hidden_layers,
-                       max_iter=self.max_iter,
-                       seed=self.seed,
-                       solver=self.solver,
-                       output_data=self.output,
+            """.format(output_data=self.output,
                        prediction=self.prediction,
                        columns=self.features,
                        model=self.model,
                        input_data=self.input_port,
                        label=self.label,
-                       batch_size=self.batch_size,
-                       learning_rate=self.learning_rate,
-                       learning_rate_init=self.learning_rate_init,
-                       power_t=self.power_t,
-                       shuffle=self.shuffle,
-                       n_iter_no_change=self.n_iter_no_change,
-                       momentum=self.momentum,
-                       nesterovs_momentum=self.nesterovs_momentum,
-                       early_stopping=self.early_stopping,
-                       validation_fraction=self.validation_fraction,
-                       beta_1=self.beta_1,
-                       beta_2=self.beta_2,
-                       epsilon=self.epsilon)
+                       add_functions_required=self.add_functions_required)
         return dedent(code)
 
 
@@ -1109,8 +1148,11 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{columns}].values.tolist()
             y = {input_data}[{label}].values.tolist()
-            {model} = linear_model.LinearRegression(fit_intercept={fit_intercept}, normalize={normalize}, 
-                                                    copy_X={copy_X}, n_jobs={n_jobs})
+            if {fit_intercept} == 1:
+                {model} = linear_model.LinearRegression(fit_intercept={fit_intercept}, normalize={normalize}, 
+                                                        copy_X={copy_X}, n_jobs={n_jobs})
+            else:
+                {model} = linear_model.LinearRegression(fit_intercept={fit_intercept}, copy_X={copy_X}, n_jobs={n_jobs})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
             """.format(fit_intercept=self.fit_intercept,

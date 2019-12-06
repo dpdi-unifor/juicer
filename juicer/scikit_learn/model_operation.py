@@ -295,7 +295,7 @@ class EvaluateModelOperation(Operation):
                     ['Accuracy', accuracy_score(y_true, y_pred)],
                     ['Cohens kappa', cohen_kappa_score(y_true, y_pred)],
                     ['Jaccard coefficient score', 
-                     jaccard_score(y_true, y_pred)],
+                     jaccard_score(y_true, y_pred, average='weighted')],
                     ['Matthews correlation coefficient (MCC)', 
                      matthews_corrcoef(y_true, y_pred)],
                 ]

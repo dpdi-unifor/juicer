@@ -1011,6 +1011,7 @@ class SplitKFoldOperation(Operation):
         self.attribute = parameters.get(self.ATTRIBUTE_ATTRIBUTE_PARAM, None)
         self.stratified = int(parameters.get(self.STRATIFIED_ATTRIBUTE_PARAM, 0))
         self.column = parameters['column'][0]
+        #self.column = parameters['column']
 
         self.input_treatment()
         self.has_import = \

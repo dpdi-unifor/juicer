@@ -262,7 +262,7 @@ class EvaluateModelOperation(Operation):
             # classification metrics
             y_pred = {input}[prediction_col].values.tolist()
             y_true = {input}[label_col].values.tolist()
-           
+                       
             if display_image:
                 # Test if feature indexer is in global cache, because
                 # strings must be converted into numbers in order tho
@@ -369,8 +369,9 @@ class EvaluateModelOperation(Operation):
         code.append(dedent("""
             # regression metrics
             y_pred = {input}[prediction_col].values.tolist()
+            y_pred = np.reshape(y_pred, len(y_pred))
             y_true = {input}[label_col].values.tolist()
-           
+               
             if display_text:
                 headers = {table_headers}
                 rows = [

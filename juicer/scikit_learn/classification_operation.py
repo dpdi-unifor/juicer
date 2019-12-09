@@ -278,7 +278,10 @@ class GBTClassifierOperation(Operation):
                                     att, self.__class__))
 
             self.has_import = \
-                "from sklearn.ensemble import GradientBoostingClassifier\n"
+                """
+                import numpy as np
+                from sklearn.ensemble import GradientBoostingClassifier
+                """
 
             self.input_treatment()
 
@@ -313,6 +316,7 @@ class GBTClassifierOperation(Operation):
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{columns}].values.tolist()
             y = {input_data}[{label}].values.tolist()
+            y = np.reshape(y, len(y))
             {model} = GradientBoostingClassifier(loss='{loss}', learning_rate={learning_rate}, 
                                                   n_estimators={n_estimators}, min_samples_split={min_split},
                                                   max_depth={max_depth}, min_samples_leaf={min_leaf}, 
@@ -404,7 +408,10 @@ class KNNClassifierOperation(Operation):
                                 self.K_PARAM, self.__class__))
 
             self.has_import = \
-                "from sklearn.neighbors import KNeighborsClassifier\n"
+                """
+                import numpy as np
+                from sklearn.neighbors import KNeighborsClassifier
+                """
 
             self.input_treatment()
 
@@ -427,6 +434,7 @@ class KNNClassifierOperation(Operation):
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{features}].values.tolist()
             y = {input_data}[{label}].values.tolist()
+            y = np.reshape(y, len(y))
             {model} = KNeighborsClassifier(n_neighbors={n_neighbors}, weights='{weights}', algorithm='{algorithm}', 
                                            leaf_size={leaf_size}, p={p}, metric='{metric}', 
                                            metric_params={metric_params}, n_jobs={n_jobs})
@@ -595,7 +603,10 @@ class MLPClassifierOperation(Operation):
             self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
 
             self.has_import = \
-                "from sklearn.neural_network import MLPClassifier\n"
+            """
+            import numpy as np
+            from sklearn.neural_network import MLPClassifier
+            """
 
             self.input_treatment()
 
@@ -715,6 +726,7 @@ class MLPClassifierOperation(Operation):
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{columns}].values.tolist()
             y = {input_data}[{label}].values.tolist()
+            y = np.reshape(y, len(y))
             {model} = MLPClassifier({add_functions_required})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -776,13 +788,22 @@ class NaiveBayesClassifierOperation(Operation):
 
             if self.model_type == self.MODEL_TYPE_PARAM_M:
                 self.has_import = \
-                    "from sklearn.naive_bayes import MultinomialNB\n"
+                    """
+                    import numpy as np
+                    from sklearn.naive_bayes import MultinomialNB
+                    """
             elif self.model_type == self.MODEL_TYPE_PARAM_B:
                 self.has_import = \
-                    "from sklearn.naive_bayes import BernoulliNB\n"
+                    """
+                    import numpy as np
+                    from sklearn.naive_bayes import BernoulliNB
+                    """
             else:
                 self.has_import = \
-                    "from sklearn.naive_bayes import GaussianNB\n"
+                    """
+                    import numpy as np
+                    from sklearn.naive_bayes import GaussianNB
+                    """
 
     @property
     def get_data_out_names(self, sep=','):
@@ -812,6 +833,7 @@ class NaiveBayesClassifierOperation(Operation):
                 {output_data} = {input_data}.copy()            
                 X_train = {input_data}[{features}].values.tolist()
                 y = {input_data}[{label}].values.tolist()
+                y = np.reshape(y, len(y))
                 {model} = MultinomialNB(alpha={alpha}, class_prior={class_prior}, fit_prior={fit_prior})
                 {model}.fit(X_train, y)          
                 {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -829,6 +851,7 @@ class NaiveBayesClassifierOperation(Operation):
                 {output_data} = {input_data}.copy()            
                 X_train = {input_data}[{features}].values.tolist()
                 y = {input_data}[{label}].values.tolist()
+                y = np.reshape(y, len(y))
                 {model} = BernoulliNB(alpha={alpha}, class_prior={class_prior}, fit_prior={fit_prior}, 
                                             binarize={binarize})
                 {model}.fit(X_train, y)          
@@ -848,6 +871,7 @@ class NaiveBayesClassifierOperation(Operation):
                 {output_data} = {input_data}.copy()            
                 X_train = {input_data}[{features}].values.tolist()
                 y = {input_data}[{label}].values.tolist()
+                y = np.reshape(y, len(y))
                 {model} = GaussianNB(priors={priors}, var_smoothing={var_smoothing})  
                 {model}.fit(X_train, y)          
                 {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -933,7 +957,10 @@ class PerceptronClassifierOperation(Operation):
                                     att, self.__class__))
 
             self.has_import = \
-                "from sklearn.linear_model import Perceptron\n"
+            """
+            import numpy as np
+            from sklearn.linear_model import Perceptron
+            """
 
             self.input_treatment()
 
@@ -964,6 +991,7 @@ class PerceptronClassifierOperation(Operation):
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{features}].values.tolist()
             y = {input_data}[{label}].values.tolist()
+            y = np.reshape(y, len(y))
             if {early_stopping} == 1:
                 {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
                                       random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 

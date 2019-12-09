@@ -220,6 +220,7 @@ class GradientBoostingRegressorOperation(RegressionOperation):
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{features}].values.tolist()
             y = {input_data}[{label}].values.tolist()
+            y = np.reshape(y, len(y))
             {model} = GradientBoostingRegressor(loss='{loss}', learning_rate={learning_rate}, 
                                                     n_estimators={n_estimators}, subsample={subsample}, 
                                                     criterion='{criterion}', min_samples_split={min_samples_split}, 
@@ -317,7 +318,10 @@ class HuberRegressorOperation(RegressionOperation):
                                 self.EPSILON_PARAM, self.__class__))
 
             self.has_import = \
-                "from sklearn.linear_model import HuberRegressor\n"
+                """
+                from sklearn.linear_model import HuberRegressor
+                import numpy as np
+                """
 
             self.input_treatment()
 
@@ -336,6 +340,7 @@ class HuberRegressorOperation(RegressionOperation):
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{features}].values.tolist()
             y = {input_data}[{label}].values.tolist()
+            y = np.reshape(y, len(y))
             {model} = HuberRegressor(epsilon={epsilon}, max_iter={max_iter}, alpha={alpha}, tol={tol}, 
                                      fit_intercept={fit_intercept}, warm_start=False)
             {model}.fit(X_train, y)
@@ -636,7 +641,10 @@ class MLPRegressorOperation(Operation):
             self.epsilon = float(parameters.get(self.EPSILON_PARAM, 0.00000001))
 
             self.has_import = \
-                "from sklearn.neural_network import MLPRegressor\n" \
+                """
+                import numpy as np
+                from sklearn.neural_network import MLPRegressor
+                """
 
             self.input_treatment()
 
@@ -742,6 +750,7 @@ class MLPRegressorOperation(Operation):
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{columns}].values.tolist()
             y = {input_data}[{label}].values.tolist()
+            y = np.reshape(y, len(y))
             {model} = MLPRegressor({add_functions_required})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -872,6 +881,7 @@ class RandomForestRegressorOperation(RegressionOperation):
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{features}].values.tolist()
             y = {input_data}[{label}].values.tolist()
+            y = np.reshape(y, len(y))
             {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
                                             max_depth={max_depth}, min_samples_split={min_samples_split}, 
                                             min_samples_leaf={min_samples_leaf}, random_state={random_state},
@@ -987,7 +997,10 @@ class SGDRegressorOperation(RegressionOperation):
                                     att, self.__class__))
 
             self.has_import = \
-                "from sklearn.linear_model import SGDRegressor\n"
+                """
+                import numpy as np
+                from sklearn.linear_model import SGDRegressor
+                """
 
             self.input_treatment()
 
@@ -1062,6 +1075,7 @@ class SGDRegressorOperation(RegressionOperation):
             {output_data} = {input_data}.copy()            
             X_train = {input_data}[{columns}].values.tolist()
             y = {input_data}[{label}].values.tolist()
+            y = np.reshape(y, len(y))
             {model} = SGDRegressor({add_functions_required})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()

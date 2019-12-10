@@ -53,8 +53,8 @@ class ClassificationModelOperation(Operation):
     def generate_code(self):
         """Generate code."""
         code = """
-            X = {input}['{features}'].values.tolist()
-            y = {input}['{label}'].values.tolist()
+            X = {input}['{features}'].to_numpy()
+            y = {input}['{label}'].to_numpy()
             {model} = {algorithm}.fit(X, y)
             """.format(model=self.model, label=self.label,
                        input=self.named_inputs['train input data'],
@@ -171,8 +171,8 @@ class DecisionTreeClassifierOperation(Operation):
         """Generate code."""
         code = """
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{columns}].values.tolist()
-            y = {input_data}[{label}].values.tolist()
+            X_train = {input_data}[{columns}].to_numpy()
+            y = {input_data}[{label}].to_numpy()
             {model} = DecisionTreeClassifier(max_depth={max_depth}, min_samples_split={min_split}, 
                                              min_samples_leaf={min_leaf}, min_weight_fraction_leaf={min_weight}, 
                                              random_state={seed}, criterion='{criterion}', splitter='{splitter}', 
@@ -314,9 +314,8 @@ class GBTClassifierOperation(Operation):
         """Generate code."""
         code = """ 
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{columns}].values.tolist()
-            y = {input_data}[{label}].values.tolist()
-            y = np.reshape(y, len(y))
+            X_train = {input_data}[{columns}].to_numpy()
+            y = {input_data}[{label}].to_numpy()
             {model} = GradientBoostingClassifier(loss='{loss}', learning_rate={learning_rate}, 
                                                   n_estimators={n_estimators}, min_samples_split={min_split},
                                                   max_depth={max_depth}, min_samples_leaf={min_leaf}, 
@@ -432,9 +431,8 @@ class KNNClassifierOperation(Operation):
         """Generate code."""
         code = """
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{features}].values.tolist()
-            y = {input_data}[{label}].values.tolist()
-            y = np.reshape(y, len(y))
+            X_train = {input_data}[{features}].to_numpy()
+            y = {input_data}[{label}].to_numpy()
             {model} = KNeighborsClassifier(n_neighbors={n_neighbors}, weights='{weights}', algorithm='{algorithm}', 
                                            leaf_size={leaf_size}, p={p}, metric='{metric}', 
                                            metric_params={metric_params}, n_jobs={n_jobs})
@@ -603,10 +601,10 @@ class MLPClassifierOperation(Operation):
             self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
 
             self.has_import = \
-            """
-            import numpy as np
-            from sklearn.neural_network import MLPClassifier
-            """
+                """
+                import numpy as np
+                from sklearn.neural_network import MLPClassifier
+                """
 
             self.input_treatment()
 
@@ -621,6 +619,9 @@ class MLPClassifierOperation(Operation):
         self.shuffle = True if int(self.shuffle) == 1 else False
         self.nesterovs_momentum = True if int(self.nesterovs_momentum) == 1 else False
         self.early_stopping = True if int(self.early_stopping) == 1 else False
+
+        if self.seed is not None:
+            self.seed = int(self.seed)
 
         if self.batch_size != 'auto':
             self.batch_size = int(self.batch_size)
@@ -651,7 +652,7 @@ class MLPClassifierOperation(Operation):
                   "of each layer for task {}").format(
                     self.HIDDEN_LAYER_SIZES_PARAM, self.__class__))
 
-        functions_required = ["""layer_sizes={hidden_layers}""".format(hidden_layers=self.hidden_layers)]
+        functions_required = ["""hidden_layers_sizes={hidden_layers}""".format(hidden_layers=self.hidden_layers)]
 
         self.activation = """activation='{activation}'""".format(activation=self.activation)
         functions_required.append(self.activation)
@@ -668,7 +669,7 @@ class MLPClassifierOperation(Operation):
         self.tol = """tol={tol}""".format(tol=self.tol)
         functions_required.append(self.tol)
 
-        self.seed = """seed='{seed}'""".format(seed=self.seed)
+        self.seed = """seed={seed}""".format(seed=self.seed)
         functions_required.append(self.seed)
 
         if self.solver != 'lbfgs':
@@ -679,10 +680,10 @@ class MLPClassifierOperation(Operation):
             self.learning_rate = """learning_rate='{learning_rate}'""".format(learning_rate=self.learning_rate)
             functions_required.append(self.learning_rate)
 
-            self.momentum = """momentum='{momentum}'""".format(momentum=self.momentum)
+            self.momentum = """momentum={momentum}""".format(momentum=self.momentum)
             functions_required.append(self.momentum)
 
-            self.power_t = """power_t='{power_t}'""".format(power_t=self.power_t)
+            self.power_t = """power_t={power_t}""".format(power_t=self.power_t)
             functions_required.append(self.power_t)
 
             if self.momentum > 0:
@@ -724,9 +725,8 @@ class MLPClassifierOperation(Operation):
         """Generate code."""
         code = """
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{columns}].values.tolist()
-            y = {input_data}[{label}].values.tolist()
-            y = np.reshape(y, len(y))
+            X_train = {input_data}[{columns}].to_numpy()
+            y = {input_data}[{label}].to_numpy()
             {model} = MLPClassifier({add_functions_required})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -804,6 +804,7 @@ class NaiveBayesClassifierOperation(Operation):
                     import numpy as np
                     from sklearn.naive_bayes import GaussianNB
                     """
+            self.input_treatment()
 
     @property
     def get_data_out_names(self, sep=','):
@@ -831,9 +832,8 @@ class NaiveBayesClassifierOperation(Operation):
         if self.model_type == self.MODEL_TYPE_PARAM_M:
             code = """
                 {output_data} = {input_data}.copy()            
-                X_train = {input_data}[{features}].values.tolist()
-                y = {input_data}[{label}].values.tolist()
-                y = np.reshape(y, len(y))
+                X_train = {input_data}[{features}].to_numpy()
+                y = {input_data}[{label}].to_numpy()
                 {model} = MultinomialNB(alpha={alpha}, class_prior={class_prior}, fit_prior={fit_prior})
                 {model}.fit(X_train, y)          
                 {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -849,9 +849,8 @@ class NaiveBayesClassifierOperation(Operation):
         elif self.model_type == self.MODEL_TYPE_PARAM_B:
             code = """
                 {output_data} = {input_data}.copy()            
-                X_train = {input_data}[{features}].values.tolist()
-                y = {input_data}[{label}].values.tolist()
-                y = np.reshape(y, len(y))
+                X_train = {input_data}[{features}].to_numpy()
+                y = {input_data}[{label}].to_numpy()
                 {model} = BernoulliNB(alpha={alpha}, class_prior={class_prior}, fit_prior={fit_prior}, 
                                             binarize={binarize})
                 {model}.fit(X_train, y)          
@@ -869,9 +868,8 @@ class NaiveBayesClassifierOperation(Operation):
         else:
             code = """
                 {output_data} = {input_data}.copy()            
-                X_train = {input_data}[{features}].values.tolist()
-                y = {input_data}[{label}].values.tolist()
-                y = np.reshape(y, len(y))
+                X_train = {input_data}[{features}].to_numpy()
+                y = {input_data}[{label}].to_numpy()
                 {model} = GaussianNB(priors={priors}, var_smoothing={var_smoothing})  
                 {model}.fit(X_train, y)          
                 {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -989,9 +987,8 @@ class PerceptronClassifierOperation(Operation):
         """Generate code."""
         code = """
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{features}].values.tolist()
-            y = {input_data}[{label}].values.tolist()
-            y = np.reshape(y, len(y))
+            X_train = {input_data}[{features}].to_numpy()
+            y = {input_data}[{label}].to_numpy()
             if {early_stopping} == 1:
                 {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
                                       random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 

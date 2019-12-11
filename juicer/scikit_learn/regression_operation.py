@@ -90,10 +90,11 @@ class RegressionModelOperation(Operation):
             code = """
             algorithm = {algorithm}
             {output_data} = {input}.copy()
-            X_train = {input}['{features}'].to_numpy()
+            X_train = {input}['{features}'].to_numpy().tolist()
             if 'IsotonicRegression' in str(algorithm):
                 X_train = np.ravel(X_train)
-            y = {input}['{label}'].to_numpy()
+            y = {input}['{label}'].to_numpy().tolist()
+            y = np.reshape(y, len(y))
             {model} = algorithm.fit(X_train, y)
             {output_data}['{prediction}'] = algorithm.predict(X_train).tolist()
             """.format(model=self.model, algorithm=self.algorithm,
@@ -218,8 +219,9 @@ class GradientBoostingRegressorOperation(RegressionOperation):
     def generate_code(self):
         code = dedent("""
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{features}].to_numpy()
-            y = {input_data}[{label}].to_numpy()
+            X_train = {input_data}[{features}].to_numpy().tolist()
+            y = {input_data}[{label}].to_numpy().tolist()
+            y = np.reshape(y, len(y))
             {model} = GradientBoostingRegressor(loss='{loss}', learning_rate={learning_rate}, 
                                                     n_estimators={n_estimators}, subsample={subsample}, 
                                                     criterion='{criterion}', min_samples_split={min_samples_split}, 
@@ -337,8 +339,9 @@ class HuberRegressorOperation(RegressionOperation):
     def generate_code(self):
         code = dedent("""
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{features}].to_numpy()
-            y = {input_data}[{label}].to_numpy()
+            X_train = {input_data}[{features}].to_numpy().tolist()
+            y = {input_data}[{label}].to_numpy().tolist()
+            y = np.reshape(y, len(y))
             {model} = HuberRegressor(epsilon={epsilon}, max_iter={max_iter}, alpha={alpha}, tol={tol}, 
                                      fit_intercept={fit_intercept}, warm_start=False)
             {model}.fit(X_train, y)
@@ -430,8 +433,8 @@ class IsotonicRegressionOperation(RegressionOperation):
     def generate_code(self):
         code = dedent("""
         {output_data} = {input_data}.copy()        
-        X_train = np.array({input_data}[{columns}].to_numpy()).flatten()
-        y = np.array({input_data}[{label}].to_numpy()).flatten()
+        X_train = np.array({input_data}[{columns}].to_numpy().tolist()).flatten()
+        y = np.array({input_data}[{label}].to_numpy().tolist()).flatten()
         {model} = IsotonicRegression(y_min={min}, y_max={max}, increasing={isotonic}, 
                                      out_of_bounds='{bounds}')
         {model}.fit(X_train, y)          
@@ -519,8 +522,9 @@ class LinearRegressionOperation(RegressionOperation):
     def generate_code(self):
         code = dedent("""
         {output_data} = {input_data}.copy()
-        X_train = {input_data}[{columns}].to_numpy()
-        y = {input_data}[{label}].to_numpy()
+        X_train = {input_data}[{columns}].to_numpy().tolist()
+        y = {input_data}[{label}].to_numpy().tolist()
+        y = np.reshape(y, len(y))
         {model} = ElasticNet(alpha={alpha}, l1_ratio={elastic}, tol={tol}, max_iter={max_iter}, random_state={seed},
                              normalize={normalize})  
         {model}.fit(X_train, y)
@@ -746,8 +750,9 @@ class MLPRegressorOperation(Operation):
         """Generate code."""
         code = """
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{columns}].to_numpy()
-            y = {input_data}[{label}].to_numpy()
+            X_train = {input_data}[{columns}].to_numpy().tolist()
+            y = {input_data}[{label}].to_numpy().tolist()
+            y = np.reshape(y, len(y))
             {model} = MLPRegressor({add_functions_required})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -876,8 +881,9 @@ class RandomForestRegressorOperation(RegressionOperation):
     def generate_code(self):
         code = dedent("""
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{features}].to_numpy()
-            y = {input_data}[{label}].to_numpy()
+            X_train = {input_data}[{features}].to_numpy().tolist()
+            y = {input_data}[{label}].to_numpy().tolist()
+            y = np.reshape(y, len(y))
             {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
                                             max_depth={max_depth}, min_samples_split={min_samples_split}, 
                                             min_samples_leaf={min_samples_leaf}, random_state={random_state},
@@ -1069,8 +1075,9 @@ class SGDRegressorOperation(RegressionOperation):
     def generate_code(self):
         code = dedent("""
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{columns}].to_numpy()
-            y = {input_data}[{label}].to_numpy()
+            X_train = {input_data}[{columns}].to_numpy().tolist()
+            y = {input_data}[{label}].to_numpy().tolist()
+            y = np.reshape(y, len(y))
             {model} = SGDRegressor({add_functions_required})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -1155,8 +1162,9 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
         """Generate code."""
         code = """
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{columns}].to_numpy()
-            y = {input_data}[{label}].to_numpy()
+            X_train = {input_data}[{columns}].to_numpy().tolist()
+            y = {input_data}[{label}].to_numpy().tolist()
+            y = np.reshape(y, len(y))
             if {fit_intercept} == 1:
                 {model} = linear_model.LinearRegression(fit_intercept={fit_intercept}, normalize={normalize}, 
                                                         copy_X={copy_X}, n_jobs={n_jobs})

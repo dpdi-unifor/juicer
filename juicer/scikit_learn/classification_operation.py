@@ -53,8 +53,8 @@ class ClassificationModelOperation(Operation):
     def generate_code(self):
         """Generate code."""
         code = """
-            X = {input}['{features}'].to_numpy()
-            y = {input}['{label}'].to_numpy()
+            X = {input}['{features}'].to_numpy().tolist()
+            y = {input}['{label}'].to_numpy().tolist()
             {model} = {algorithm}.fit(X, y)
             """.format(model=self.model, label=self.label,
                        input=self.named_inputs['train input data'],
@@ -171,8 +171,9 @@ class DecisionTreeClassifierOperation(Operation):
         """Generate code."""
         code = """
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{columns}].to_numpy()
-            y = {input_data}[{label}].to_numpy()
+            X_train = {input_data}[{columns}].to_numpy().tolist()
+            y = {input_data}[{label}].to_numpy().tolist()
+            y = np.reshape(y, len(y))
             {model} = DecisionTreeClassifier(max_depth={max_depth}, min_samples_split={min_split}, 
                                              min_samples_leaf={min_leaf}, min_weight_fraction_leaf={min_weight}, 
                                              random_state={seed}, criterion='{criterion}', splitter='{splitter}', 
@@ -314,8 +315,9 @@ class GBTClassifierOperation(Operation):
         """Generate code."""
         code = """ 
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{columns}].to_numpy()
-            y = {input_data}[{label}].to_numpy()
+            X_train = {input_data}[{columns}].to_numpy().tolist()
+            y = {input_data}[{label}].to_numpy().tolist()
+            y = np.reshape(y, len(y))
             {model} = GradientBoostingClassifier(loss='{loss}', learning_rate={learning_rate}, 
                                                   n_estimators={n_estimators}, min_samples_split={min_split},
                                                   max_depth={max_depth}, min_samples_leaf={min_leaf}, 
@@ -431,8 +433,9 @@ class KNNClassifierOperation(Operation):
         """Generate code."""
         code = """
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{features}].to_numpy()
-            y = {input_data}[{label}].to_numpy()
+            X_train = {input_data}[{features}].to_numpy().tolist()
+            y = {input_data}[{label}].to_numpy().tolist()
+            y = np.reshape(y, len(y))
             {model} = KNeighborsClassifier(n_neighbors={n_neighbors}, weights='{weights}', algorithm='{algorithm}', 
                                            leaf_size={leaf_size}, p={p}, metric='{metric}', 
                                            metric_params={metric_params}, n_jobs={n_jobs})
@@ -725,8 +728,9 @@ class MLPClassifierOperation(Operation):
         """Generate code."""
         code = """
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{columns}].to_numpy()
-            y = {input_data}[{label}].to_numpy()
+            X_train = {input_data}[{columns}].to_numpy().tolist()
+            y = {input_data}[{label}].to_numpy().tolist()
+            y = np.reshape(y, len(y))
             {model} = MLPClassifier({add_functions_required})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -832,8 +836,9 @@ class NaiveBayesClassifierOperation(Operation):
         if self.model_type == self.MODEL_TYPE_PARAM_M:
             code = """
                 {output_data} = {input_data}.copy()            
-                X_train = {input_data}[{features}].to_numpy()
-                y = {input_data}[{label}].to_numpy()
+                X_train = {input_data}[{features}].to_numpy().tolist()
+                y = {input_data}[{label}].to_numpy().tolist()
+                y = np.reshape(y, len(y))
                 {model} = MultinomialNB(alpha={alpha}, class_prior={class_prior}, fit_prior={fit_prior})
                 {model}.fit(X_train, y)          
                 {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -849,8 +854,9 @@ class NaiveBayesClassifierOperation(Operation):
         elif self.model_type == self.MODEL_TYPE_PARAM_B:
             code = """
                 {output_data} = {input_data}.copy()            
-                X_train = {input_data}[{features}].to_numpy()
-                y = {input_data}[{label}].to_numpy()
+                X_train = {input_data}[{features}].to_numpy().tolist()
+                y = {input_data}[{label}].to_numpy().tolist()
+                y = np.reshape(y, len(y))
                 {model} = BernoulliNB(alpha={alpha}, class_prior={class_prior}, fit_prior={fit_prior}, 
                                             binarize={binarize})
                 {model}.fit(X_train, y)          
@@ -868,8 +874,9 @@ class NaiveBayesClassifierOperation(Operation):
         else:
             code = """
                 {output_data} = {input_data}.copy()            
-                X_train = {input_data}[{features}].to_numpy()
-                y = {input_data}[{label}].to_numpy()
+                X_train = {input_data}[{features}].to_numpy().tolist()
+                y = {input_data}[{label}].to_numpy().tolist()
+                y = np.reshape(y, len(y))
                 {model} = GaussianNB(priors={priors}, var_smoothing={var_smoothing})  
                 {model}.fit(X_train, y)          
                 {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -987,8 +994,9 @@ class PerceptronClassifierOperation(Operation):
         """Generate code."""
         code = """
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{features}].to_numpy()
-            y = {input_data}[{label}].to_numpy()
+            X_train = {input_data}[{features}].to_numpy().tolist()
+            y = {input_data}[{label}].to_numpy().tolist()
+            y = np.reshape(y, len(y))
             if {early_stopping} == 1:
                 {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
                                       random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 

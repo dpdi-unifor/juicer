@@ -245,7 +245,6 @@ class LogisticRegressionOperation(Operation):
     FIT_INTERCEPT_PARAM = 'fit_intercept'
     INTERCEPT_SCALING_PARAM = 'intercept_scaling'
     MULTI_CLASS_PARAM = 'multi_class'
-    WARM_START_PARAM = 'warm_start'
     N_JOBS_PARAM = 'n_jobs'
     L1_RATIO_PARAM = 'l1_ratio'
     VERBOSE_PARAM = 'verbose'
@@ -309,7 +308,6 @@ class LogisticRegressionOperation(Operation):
             self.dual = int(parameters.get(self.DUAL_PARAM, 0)) == 1
             self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_PARAM, 1)) == 1
             self.intercept_scaling = float(parameters.get(self.INTERCEPT_SCALING_PARAM, 1.0))
-            self.warm_start = int(parameters.get(self.WARM_START_PARAM, 0)) == 1
             self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0))
 
             n_jobs_ = parameters.get(self.N_JOBS_PARAM, None)
@@ -364,8 +362,8 @@ class LogisticRegressionOperation(Operation):
             {model} = LogisticRegression(tol={tol}, C={C}, max_iter={max_iter},
             solver='{solver}', random_state={seed}, penalty='{penalty}', dual={dual},
             fit_intercept={fit_intercept}, intercept_scaling={intercept_scaling}, 
-            multi_class='{multi_class}', verbose={verbose}, warm_start={warm_start}, 
-            n_jobs={n_jobs}, l1_ratio={l1_ratio})
+            multi_class='{multi_class}', verbose={verbose}, n_jobs={n_jobs},
+            l1_ratio={l1_ratio})
 
             X_train = {input}[{features}].values.tolist()
             y = {input}[{label}].values.tolist()
@@ -377,9 +375,9 @@ class LogisticRegressionOperation(Operation):
                        seed=self.seed, solver=self.solver, penalty=self.penalty,
                        dual=self.dual, fit_intercept=self.fit_intercept, 
                        intercept_scaling=self.intercept_scaling, multi_class=self.multi_class,
-                       verbose=self.verbose, warm_start=self.warm_start, n_jobs=self.n_jobs,
-                       l1_ratio=self.l1_ratio, model=self.model, input=self.input_port,
-                       label=self.label, output=self.output, prediction_column=self.prediction_column, 
+                       verbose=self.verbose, n_jobs=self.n_jobs, l1_ratio=self.l1_ratio, 
+                       model=self.model, input=self.input_port, label=self.label,
+                       output=self.output, prediction_column=self.prediction_column, 
                        features=self.features)
         return dedent(code)
 
@@ -585,29 +583,108 @@ class PerceptronClassifierOperation(Operation):
 
 
 class RandomForestClassifierOperation(Operation):
-
+    LABEL_PARAM = 'label'
+    PREDICTION_PARAM = 'prediction'
+    FEATURES_PARAM = 'features'
     N_ESTIMATORS_PARAM = 'n_estimators'
     MAX_DEPTH_PARAM = 'max_depth'
     MIN_SPLIT_PARAM = 'min_samples_split'
     MIN_LEAF_PARAM = 'min_samples_leaf'
     SEED_PARAM = 'seed'
+    CRITERION_PARAM = 'criterion'
+    MIN_WEIGHT_FRACTION_LEAF_PARAM = 'min_weight_fraction_leaf'
+    MAX_FEATURES_PARAM = 'max_features'
+    MAX_LEAF_NODES_PARAM = 'max_leaf_nodes'
+    MIN_IMPURITY_DECREASE_PARAM = 'min_impurity_decrease'
+    BOOTSTRAP_PARAM = 'bootstrap'
+    OOB_SCORE_PARAM = 'oob_score'
+    N_JOBS_PARAM = 'n_jobs'
+    VERBOSE_PARAM = 'verbose'
+    CCP_ALPHA_PARAM = 'ccp_alpha'
+    MAX_SAMPLES_PARAM = 'max_samples'
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
         self.has_code = True
         if self.has_code:
-            self.output = \
-                named_outputs.get('algorithm',
-                                  'algorithm_tmp_{}'.format(self.order))
+            self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
+
+            self.input_port = self.named_inputs.get(
+            'train input data', 'input_data_{}'.format(self.order))
+
+            self.model = self.named_outputs.get(
+                'model', 'model_{}'.format(self.order))
+
+            if self.LABEL_PARAM not in parameters:
+                msg = _("Parameters '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.LABEL_PARAM,
+                    self.__class__.__name__))
+            else: self.label = parameters.get(self.LABEL_PARAM, None)
+
+            if self.FEATURES_PARAM not in parameters:
+                msg = _("Parameters '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.FEATURES_PARAM,
+                    self.__class__.__name__))
+            else: self.features = parameters.get(self.FEATURES_PARAM, None)
+
+            self.prediction_column = parameters.get(self.PREDICTION_PARAM,
+                                             'prediction')
 
             self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
-            self.min_split = parameters.get(self.MIN_SPLIT_PARAM, 2) or 2
-            self.min_leaf = parameters.get(self.MIN_LEAF_PARAM, 1) or 1
-            self.max_depth = parameters.get(self.MAX_DEPTH_PARAM,
-                                            'None') or 'None'
-            self.n_estimators = parameters.get(self.N_ESTIMATORS_PARAM,
-                                               10) or 10
+            self.min_split = int(parameters.get(self.MIN_SPLIT_PARAM, 2) or 2)
+            self.min_leaf = int(parameters.get(self.MIN_LEAF_PARAM, 1) or 1)
+            
+            self.max_depth = self.__positive_or_none_param(parameters, self.MAX_DEPTH_PARAM)
+            self.n_estimators = int(parameters.get(self.N_ESTIMATORS_PARAM,
+                                               10) or 10)
+
+            self.criterion = parameters.get(self.CRITERION_PARAM, 'gini')
+
+            self.min_weight_fraction_leaf = float(parameters.get(self.MIN_WEIGHT_FRACTION_LEAF_PARAM, 0.0))
+            if(self.min_weight_fraction_leaf < 0.0 or self.min_weight_fraction_leaf > 0.5):
+                raise ValueError(
+                    _("Parameter '{}' must be x>=0.0 and x<=0.5 for task {}").format(
+                            self.MIN_WEIGHT_FRACTION_LEAF_PARAM, self.__class__))
+
+
+            self.max_features = self.__positive_or_none_param(parameters, self.MAX_FEATURES_PARAM)
+            self.max_leaf_nodes = self.__positive_or_none_param(parameters, self.MAX_LEAF_NODES_PARAM)
+
+            self.min_impurity_decrease = float(parameters.get(self.MIN_IMPURITY_DECREASE_PARAM, 0.0))
+
+            self.bootstrap = int(parameters.get(self.BOOTSTRAP_PARAM, 1)) == 1
+            self.oob_score = int(parameters.get(self.OOB_SCORE_PARAM, 0)) == 1
+
+            self.n_jobs = self.__positive_or_none_param(parameters, self.N_JOBS_PARAM)
+            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0)) or 0
+
+            self.ccp_alpha = float(parameters.get(self.CCP_ALPHA_PARAM, 0.0))
+            
+            max_samples_ = parameters.get(self.MAX_SAMPLES_PARAM, None)
+            if max_samples_ is not None:
+                max_samples_ = float(max_samples_)
+                if max_samples_ <= 0.0 or max_samples_ >= 100.0:
+                    raise ValueError(
+                            _("Parameter '{}' must be x>0 and x<100, or empty, case \
+                             you want to use a fully sample for task {}").format(
+                                    self.MAX_SAMPLES_PARAM, self.__class__))
+                else:
+                    self.max_samples = max_samples_/100.0
+            else:
+                self.max_samples = 'None'
+
+
+            vals = [self.verbose, self.min_impurity_decrease, self.ccp_alpha]
+            atts = [self.VERBOSE_PARAM, self.MIN_IMPURITY_DECREASE_PARAM, self.CCP_ALPHA_PARAM]
+            for var, att in zip(vals, atts):
+                if var < 0:
+                    raise ValueError(
+                            _("Parameter '{}' must be x>=0 for task {}").format(
+                                    att, self.__class__))
 
             vals = [self.min_split, self.min_leaf, self.n_estimators]
             atts = [self.MIN_SPLIT_PARAM, self.MIN_LEAF_PARAM,
@@ -618,26 +695,59 @@ class RandomForestClassifierOperation(Operation):
                             _("Parameter '{}' must be x>0 for task {}").format(
                                     att, self.__class__))
 
-            if self.max_depth is not 'None' and self.max_depth <= 0:
-                raise ValueError(
-                        _("Parameter '{}' must be x>0 for task {}").format(
-                                self.MAX_DEPTH_PARAM, self.__class__))
-
             self.has_import = \
                 "from sklearn.ensemble import RandomForestClassifier\n"
 
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
+    def __positive_or_none_param(self, parameters, param_name):
+        returned_param = None
+        param = parameters.get(param_name, None)
+        if param is not None:
+            returned_param = int(param)
+            if returned_param < 0:
+                raise ValueError(
+                        _("Parameter '{}' must be x>=0  for task {}").format(
+                                param_name, self.__class__))
+        else:
+            returned_param = 'None'
+        return returned_param
+
     def generate_code(self):
+
         """Generate code."""
         code = """
-        {output} = RandomForestClassifier(n_estimators={n_estimators}, 
+        {model} = RandomForestClassifier(n_estimators={n_estimators}, 
         max_depth={max_depth},  min_samples_split={min_split}, 
-        min_samples_leaf={min_leaf}, random_state={seed})
-        """.format(output=self.output, n_estimators=self.n_estimators,
-                   max_depth=self.max_depth, min_split=self.min_split,
-                   min_leaf=self.min_leaf, seed=self.seed)
+        min_samples_leaf={min_leaf}, random_state={seed},
+        criterion='{criterion}', min_weight_fraction_leaf={min_weight_fraction_leaf},
+        max_features={max_features}, max_leaf_nodes={max_leaf_nodes}, 
+        min_impurity_decrease={min_impurity_decrease}, bootstrap={bootstrap},
+        oob_score={oob_score}, n_jobs={n_jobs}, verbose={verbose},
+        ccp_alpha={ccp_alpha}, max_samples={max_samples})
+
+        X_train = {input}[{features}].values.tolist()
+        y = {input}[{label}].values.tolist()
+        {model}.fit(X_train, y)
+
+        {output} = {input}.copy()
+        {output}['{prediction_column}'] = {model}.predict(X_train).tolist()
+        """.format(output=self.output, model=self.model, input=self.input_port,
+                   n_estimators=self.n_estimators, max_depth=self.max_depth, 
+                   min_split=self.min_split, min_leaf=self.min_leaf, seed=self.seed,
+                   criterion=self.criterion, min_weight_fraction_leaf=self.min_weight_fraction_leaf,
+                   max_features=self.max_features, max_leaf_nodes=self.max_leaf_nodes,
+                   min_impurity_decrease=self.min_impurity_decrease, bootstrap=self.bootstrap,
+                   oob_score=self.oob_score, n_jobs=self.n_jobs, verbose=self.verbose,
+                   ccp_alpha=self.ccp_alpha, max_samples=self.max_samples, features=self.features,
+                   prediction_column=self.prediction_column, label=self.label)
 
         return dedent(code)
-
 
 class SvmClassifierOperation(Operation):
 

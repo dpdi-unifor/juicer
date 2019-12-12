@@ -1,6 +1,7 @@
 from textwrap import dedent
 from juicer.operation import Operation
 import re
+from juicer.util.template_util import *
 
 class ClassificationModelOperation(Operation):
 
@@ -568,7 +569,7 @@ class MLPClassifierOperation(Operation):
             'train input data', 'input_data_{}'.format(self.order))
         if self.has_code:
             self.add_functions_required = ""
-            self.hidden_layers = parameters.get(self.HIDDEN_LAYER_SIZES_PARAM, '(1,100,1)') or '(1,100,1)'
+            self.hidden_layers = parameters.get(self.HIDDEN_LAYER_SIZES_PARAM, '(100,1)') or '(100,1)'
             self.hidden_layers = \
                 self.hidden_layers.replace("(", "").replace(")", "")
             self.activation = parameters.get(
@@ -655,7 +656,8 @@ class MLPClassifierOperation(Operation):
                   "of each layer for task {}").format(
                     self.HIDDEN_LAYER_SIZES_PARAM, self.__class__))
 
-        functions_required = ["""hidden_layers_sizes={hidden_layers}""".format(hidden_layers=self.hidden_layers)]
+        self.hidden_layers = tuple([int(i) for i in self.hidden_layers.replace(' ', '').split(',')])
+        functions_required = ["""hidden_layer_sizes={hidden_layers}""".format(hidden_layers=self.hidden_layers)]
 
         self.activation = """activation='{activation}'""".format(activation=self.activation)
         functions_required.append(self.activation)
@@ -672,7 +674,7 @@ class MLPClassifierOperation(Operation):
         self.tol = """tol={tol}""".format(tol=self.tol)
         functions_required.append(self.tol)
 
-        self.seed = """seed={seed}""".format(seed=self.seed)
+        self.seed = """random_state={seed}""".format(seed=self.seed)
         functions_required.append(self.seed)
 
         if self.solver != 'lbfgs':
@@ -723,6 +725,8 @@ class MLPClassifierOperation(Operation):
         if self.solver == 'lbfgs':
             self.max_fun = """max_fun={max_fun}""".format(max_fun=self.max_fun)
             functions_required.append(self.max_fun)
+
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         """Generate code."""

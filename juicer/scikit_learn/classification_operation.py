@@ -365,8 +365,9 @@ class LogisticRegressionOperation(Operation):
             multi_class='{multi_class}', verbose={verbose}, n_jobs={n_jobs},
             l1_ratio={l1_ratio})
 
-            X_train = {input}[{features}].values.tolist()
-            y = {input}[{label}].values.tolist()
+            X_train = {input}[{features}].to_numpy().tolist()
+            y = {input}[{label}].to_numpy().tolist()
+            y = np.reshape(y, len(y))
             {model}.fit(X_train, y)
 
             {output} = {input}.copy()
@@ -731,8 +732,9 @@ class RandomForestClassifierOperation(Operation):
         oob_score={oob_score}, n_jobs={n_jobs}, verbose={verbose},
         ccp_alpha={ccp_alpha}, max_samples={max_samples})
 
-        X_train = {input}[{features}].values.tolist()
-        y = {input}[{label}].values.tolist()
+        X_train = {input}[{features}].to_numpy().tolist()
+        y = {input}[{label}].to_numpy().tolist()
+        y = np.reshape(y, len(y))
         {model}.fit(X_train, y)
 
         {output} = {input}.copy()
@@ -848,8 +850,9 @@ class SvmClassifierOperation(Operation):
                        decision_function_shape='{decision_func_shape}',
                        class_weight=None, verbose=False)
 
-        X_train = {input}[{features}].values.tolist()
-        y = {input}[{label}].values.tolist()
+        X_train = {input}[{features}].to_numpy().tolist()
+        y = {input}[{label}].to_numpy().tolist()
+        y = np.reshape(y, len(y))
         {model}.fit(X_train, y)
 
         {output} = {input}.copy()

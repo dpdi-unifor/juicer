@@ -746,6 +746,8 @@ class MLPRegressorOperation(Operation):
             self.early_stopping = """early_stopping={early_stopping}""".format(early_stopping=self.early_stopping)
             functions_required.append(self.early_stopping)
 
+            self.add_functions_required = ',\n    '.join(functions_required)
+
     def generate_code(self):
         """Generate code."""
         code = """
@@ -1071,6 +1073,8 @@ class SGDRegressorOperation(RegressionOperation):
             self.validation_fraction = """validation_fraction={validation_fraction}""".format(
                 validation_fraction=self.validation_fraction)
             functions_required.append(self.validation_fraction)
+
+        self.add_functions_required = ',\n    '.join(functions_required)
 
     def generate_code(self):
         code = dedent("""

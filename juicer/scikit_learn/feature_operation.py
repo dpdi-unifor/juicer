@@ -461,17 +461,16 @@ class StringIndexerOperation(Operation):
         models = self.named_outputs.get('models',
                                         'models_task_{}'.format(self.order))
         code = dedent("""
-           le = LabelEncoder()
            {output} = {input}.copy()
-           {model} = dict()
+           {models} = dict()
+           le = LabelEncoder()
            for col, new_col in zip({columns}, {alias}):
                 data = {input}[col].values.tolist()
-                    {model}[new_col] = le.fit(data)
-                    {output}[new_col] = le.fit(data)
-    
+                {models}[new_col] = le.fit_transform(data)
+                {output}[new_col] =le.fit_transform(data)    
            """.format(input=input_data,
                       output=output,
                       models=models,
                       columns=self.attributes,
-                      alias=self.alias)
+                      alias=self.alias))
         return code

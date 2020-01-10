@@ -1,7 +1,6 @@
 from textwrap import dedent
 from juicer.operation import Operation
 import string
-import numpy as np
 
 
 class SafeDict(dict):
@@ -11,46 +10,53 @@ class SafeDict(dict):
 
 
 class ApplyModelOperation(Operation):
-    NEW_ATTRIBUTE_PARAM = 'prediction'
+    FEATURES_PARAM = 'features'
+    PREDICTION_PARAM = 'prediction'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
+        self.has_code = len(named_inputs) > 0 and any(
+            [len(self.named_outputs) > 0, self.contains_results()])
+        if self.has_code:
+            self.output = self.named_outputs.get('output data',
+                                                 'out_data_{}'.format(self.order))
 
-        self.has_code = any(
-            [len(self.named_inputs) == 2, self.contains_results()])
+            self.model = self.named_inputs.get(
+                'model', 'model_{}'.format(self.order))
 
-        self.new_attribute = parameters.get(self.NEW_ATTRIBUTE_PARAM,
-                                            None)
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
 
-        self.feature = parameters['features']
+            if self.FEATURES_PARAM not in self.parameters:
+                msg = _("Parameters '{}' must be informed for task {}")
+                raise ValueError(msg.format(
+                    self.FEATURES_PARAM, self.__class__.__name__))
+            self.features = self.parameters.get(self.FEATURES_PARAM)
+
         if not self.has_code and len(self.named_outputs) > 0:
             raise ValueError(
                 _('Model is being used, but at least one input is missing'))
-        self.input_data1 = self.named_inputs['input data']
+
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
 
     def generate_code(self):
-        output = self.named_outputs.get('output data',
-                                        'out_task_{}'.format(self.order))
-
-        model = self.named_inputs.get(
-            'model', 'model_task_{}'.format(self.order))
-
         code = dedent("""
             {out} = {in1}
-            if 'isotonic-regression-model' in {parent}:
-                X_test = np.array({in1}[{features}].values.tolist()).flatten()
+            X_train = get_X_train_data({in1}, {features})
+            if hasattr({in2}, 'predict'):
+                {out}['{new_attr}'] = {in2}.predict(X_train).tolist()
             else:
-                X_test = get_X_train_data({in1}, {features})
-            {out}['{new_attr}'] = {model}.predict(X_test).tolist()
-            """.format(out=output, in1=self.input_data1, model=model,
-                       new_attr=self.new_attribute, features=self.feature, parent=self.parameters['parents_slug']))
-
+                # to handle scaler operations
+                {out}['{new_attr}'] = {in2}.transform(X_train).tolist()
+            """.format(out=self.output, in1=self.named_inputs['input data'], in2=self.model,
+                       new_attr=self.prediction, features=self.features))
         return dedent(code)
-
 
 class LoadModel(Operation):
     """LoadModel.
-
     """
 
     def __init__(self, parameters,  named_inputs, named_outputs):
@@ -59,7 +65,7 @@ class LoadModel(Operation):
         if 'name' not in parameters:
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}")
-                .format('name', self.__class__))
+                    .format('name', self.__class__))
 
         self.filename = parameters['name']
         self.output = named_outputs.get('output data',
@@ -69,7 +75,7 @@ class LoadModel(Operation):
         if not self.has_code:
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}")
-                .format('output data', self.__class__))
+                    .format('output data', self.__class__))
 
     def generate_code(self):
         """Generate code."""
@@ -92,7 +98,7 @@ class SaveModel(Operation):
         if not self.has_code:
             raise ValueError(
                 _("Parameter '{}' must be informed for task {}")
-                .format('name', self.__class__))
+                    .format('name', self.__class__))
         self.filename = self.parameters['name']
         self.overwrite = parameters.get('write_nome', 'OVERWRITE')
         if self.overwrite == 'OVERWRITE':
@@ -106,7 +112,6 @@ class SaveModel(Operation):
         import pickle
         filename = '{filename}'
         pickle.dump({IN}, open(filename, 'wb'))
-
         """.format(IN=self.named_inputs['input data'],
                    filename=self.filename, overwrite=self.overwrite)
         return dedent(code)
@@ -130,38 +135,38 @@ class EvaluateModelOperation(Operation):
                            named_outputs)
 
         self.prediction_attribute = (parameters.get(
-                self.PREDICTION_ATTRIBUTE_PARAM) or [''])[0]
-        self.feature_attribute = (parameters.get(
-                self.FEATURE_ATTRIBUTE_PARAM) or [''])[0]
+            self.PREDICTION_ATTRIBUTE_PARAM) or [''])[0]
+        # self.feature_attribute = (parameters.get(
+        #         self.FEATURE_ATTRIBUTE_PARAM) or [''])[0]
         self.label_attribute = (parameters.get(
-                self.LABEL_ATTRIBUTE_PARAM) or [''])[0]
+            self.LABEL_ATTRIBUTE_PARAM) or [''])[0]
         self.type_model = parameters.get(self.METRIC_PARAM) or ''
 
         if any([self.prediction_attribute == '', self.type_model == '']):
             msg = \
                 _("Parameters '{}' and '{}' must be informed for task {}")
             raise ValueError(msg.format(
-                    self.PREDICTION_ATTRIBUTE_PARAM,
-                    self.METRIC_PARAM, self.__class__))
+                self.PREDICTION_ATTRIBUTE_PARAM,
+                self.METRIC_PARAM, self.__class__))
 
         if self.type_model not in self.METRIC_TO_EVALUATOR:
             raise ValueError(_('Invalid metric value {}').format(
-                    self.type_model))
+                self.type_model))
 
-        if self.type_model == 'clustering':
-            if self.feature_attribute == '':
-                msg = \
-                    _("Parameters '{}' must be informed for task {}")
-                raise ValueError(msg.format(
-                        self.FEATURE_ATTRIBUTE_PARAM, self.__class__))
-            else:
-                self.label_attribute = self.feature_attribute
-        else:
-            if self.label_attribute == '':
-                msg = \
-                    _("Parameters '{}' must be informed for task {}")
-                raise ValueError(msg.format(
-                        self.LABEL_ATTRIBUTE_PARAM, self.__class__))
+        # if self.type_model == 'clustering':
+        #     if self.feature_attribute == '':
+        #         msg = \
+        #             _("Parameters '{}' must be informed for task {}")
+        #         raise ValueError(msg.format(
+        #                 self.FEATURE_ATTRIBUTE_PARAM, self.__class__))
+        #     else:
+        #         self.label_attribute = self.feature_attribute
+        # else:
+        if self.label_attribute == '':
+            msg = \
+                _("Parameters '{}' must be informed for task {}")
+            raise ValueError(msg.format(
+                self.LABEL_ATTRIBUTE_PARAM, self.__class__))
 
         self.has_code = any([(
                 (len(self.named_inputs) > 0 and len(self.named_outputs) > 0) or
@@ -169,16 +174,18 @@ class EvaluateModelOperation(Operation):
                 ('input data' in self.named_inputs)
         ), self.contains_results()])
 
-        self.model = self.named_inputs.get('model')
+        self.model = self.named_inputs.get(
+            'model', 'model_{}'.format(self.order))
+
         self.model_out = self.named_outputs.get(
-                'evaluated model', 'model_task_{}'.format(self.order))
+            'evaluated model', 'model_task_{}'.format(self.order))
 
         self.evaluator_out = self.named_outputs.get(
-                'evaluator', 'evaluator_task_{}'.format(self.order))
+            'evaluator', 'evaluator_task_{}'.format(self.order))
         if not self.has_code and self.named_outputs.get(
                 'evaluated model') is not None:
             raise ValueError(
-                    _('Model is being used, but at least one input is missing'))
+                _('Model is being used, but at least one input is missing'))
 
         self.supports_cache = False
         self.has_import = "from sklearn.metrics import * \n"
@@ -194,19 +201,36 @@ class EvaluateModelOperation(Operation):
             return ''
         else:
             display_text = self.parameters['task']['forms'].get(
-                    'display_text', {'value': 1}).get('value', 1) in (1, '1')
+                'display_text', {'value': 1}).get('value', 1) in (1, '1')
             display_image = self.parameters['task']['forms'].get(
-                    'display_image', {'value': 1}).get('value', 1) in (1, '1')
+                'display_image', {'value': 1}).get('value', 1) in (1, '1')
 
             code = [dedent("""
-            metric_value = 0.0
-            display_text = {display_text}
-            display_image = {display_image}
-            model_type = '{model_type}'
-            label_col = '{label_attr}'
-            prediction_col = '{prediction_attr}'
-            {model_output} = None
-            """)]
+                metric_value = 0.0
+                display_text = {display_text}
+                display_image = {display_image}
+                model_type = '{model_type}'
+                label_col = '{label_attr}'
+                prediction_col = '{prediction_attr}'
+                {model_output} = None
+                y_pred = {input}[prediction_col].to_numpy().tolist()
+                y_true = {input}[label_col].to_numpy().tolist()
+                # Code for evaluating if the Label attribute is categorical
+                from pandas.api.types import is_numeric_dtype
+                if not is_numeric_dtype({input}[label_col]):
+                    from sklearn.preprocessing import LabelEncoder
+                    le = LabelEncoder()
+                    le.fit(y_true)
+                    final_label = le.transform(y_true)
+                    if model_type != 'clustering':
+                        final_pred = le.transform(y_pred)
+                    else:
+                        final_pred = y_pred
+                else:
+                    final_label = y_true
+                    final_pred = y_pred
+                # Used in summary              
+                """)]
 
             if self.type_model == 'classification':
                 self._get_code_for_classification_metrics(code)
@@ -227,29 +251,29 @@ class EvaluateModelOperation(Operation):
             # """))
 
             code = "\n".join(code).format(
-                    display_text=display_text,
-                    display_image=display_image,
-                    evaluator_out=self.evaluator_out,
-                    join_plot_title=_('Prediction versus Residual'),
-                    join_plot_y_title=_('Residual'),
-                    join_plot_x_title=_('Prediction'),
-                    input=self.named_inputs['input data'],
-                    label_attr=self.label_attribute,
-                    model=self.model,
-                    model_output=self.model_out,
-                    model_type=self.type_model,
-                    operation_id=self.parameters['operation_id'],
-                    params_title=_('Parameters for this estimator'),
-                    params_table_headers=[_('Parameters'), _('Value')],
-                    plot_title=_('Actual versus Prediction'),
-                    plot_x_title=_('Actual'),
-                    plot_y_title=_('Prediction'),
-                    prediction_attr=self.prediction_attribute,
-                    table_headers=[_('Metric'), _('Value')],
-                    task_id=self.parameters['task_id'],
-                    title=_('Evaluation result'),
+                display_text=display_text,
+                display_image=display_image,
+                evaluator_out=self.evaluator_out,
+                join_plot_title=_('Prediction versus Residual'),
+                join_plot_y_title=_('Residual'),
+                join_plot_x_title=_('Prediction'),
+                input=self.named_inputs['input data'],
+                label_attr=self.label_attribute,
+                model=self.model,
+                model_output=self.model_out,
+                model_type=self.type_model,
+                operation_id=self.parameters['operation_id'],
+                params_title=_('Parameters for this estimator'),
+                params_table_headers=[_('Parameters'), _('Value')],
+                plot_title=_('Actual versus Prediction'),
+                plot_x_title=_('Actual'),
+                plot_y_title=_('Prediction'),
+                prediction_attr=self.prediction_attribute,
+                table_headers=[_('Metric'), _('Value')],
+                task_id=self.parameters['task_id'],
+                title=_('Evaluation result'),
             )
-            #print (code)
+            # print(code)
             return dedent(code)
 
     @staticmethod
@@ -260,9 +284,6 @@ class EvaluateModelOperation(Operation):
         """
         code.append(dedent("""
             # classification metrics
-            y_pred = {input}[prediction_col].values.tolist()
-            y_true = {input}[label_col].values.tolist()
-           
             if display_image:
                 # Test if feature indexer is in global cache, because
                 # strings must be converted into numbers in order tho
@@ -273,10 +294,8 @@ class EvaluateModelOperation(Operation):
                     classes = indexer.labels
                 else:
                     classes = sorted(list(set(y_true)))
-
                 content = ConfusionMatrixImageReport(
                     cm=confusion_matrix(y_true, y_pred), classes=classes,)
-
                 emit_event(
                     'update task', status='COMPLETED',
                     identifier='{task_id}',
@@ -285,9 +304,7 @@ class EvaluateModelOperation(Operation):
                     task={{'id': '{task_id}'}},
                     operation={{'id': {operation_id}}},
                     operation_id={operation_id})
-
             if display_text:
-            
                 headers = {table_headers}
                 rows = [
                     ['F1', f1_score(y_true, y_pred, average='weighted')],
@@ -297,12 +314,11 @@ class EvaluateModelOperation(Operation):
                      recall_score(y_true, y_pred, average='weighted')],
                     ['Accuracy', accuracy_score(y_true, y_pred)],
                     ['Cohens kappa', cohen_kappa_score(y_true, y_pred)],
-                    ['Jaccard similarity coefficient score', 
-                     jaccard_similarity_score(y_true, y_pred)],
+                    ['Jaccard coefficient score', 
+                     jaccard_score(y_true, y_pred, average='weighted')],
                     ['Matthews correlation coefficient (MCC)', 
                      matthews_corrcoef(y_true, y_pred)],
                 ]
-                
                 if len(list(set(y_true))) == 2:
                     if set(y_true) != set([0,1]):
                         from sklearn.preprocessing import LabelEncoder
@@ -310,17 +326,14 @@ class EvaluateModelOperation(Operation):
                         le.fit(y_true)
                         y_true = le.transform(y_true)
                         y_pred = le.transform(y_pred)
-                    
                     rows.append(['Area under ROC', 
                      roc_auc_score(y_true, y_pred)])
                     rows.append(['Area under Precision-Recall', 
                      average_precision_score(y_true, y_pred)])
-                
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',
                         headers, rows,
                         title='{title}')
-
                 emit_event(
                     'update task', status='COMPLETED',
                     identifier='{task_id}',
@@ -337,22 +350,19 @@ class EvaluateModelOperation(Operation):
         Code for the evaluator when metric is related to clustering
         """
         code.append(dedent("""
-            # clustering metrics
-            y_pred = {input}[prediction_col].values.tolist()
-            y_true = {input}[label_col].values.tolist()
-
+            # clustering metrics                        
+            final_pred = np.array(final_pred).reshape(-1, 1)
+            final_label = np.array(final_label).reshape(-1, 1)
             if display_text:
                 headers = {table_headers}
                 rows = [
-                    ['Silhouette Coefficient',silhouette_score(y_true, y_pred)],
+                    ['Silhouette Coefficient',silhouette_score(final_label, final_pred)],
                     ['Calinski and Harabaz score', 
-                     calinski_harabaz_score(y_true, y_pred)],
+                     calinski_harabaz_score(final_label, final_pred)],
                 ]
-
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',
                         headers, rows, title='{title}')
-
                 emit_event(
                     'update task', status='COMPLETED',
                     identifier='{task_id}',
@@ -371,9 +381,6 @@ class EvaluateModelOperation(Operation):
 
         code.append(dedent("""
             # regression metrics
-            y_pred = {input}[prediction_col].values.tolist()
-            y_true = {input}[label_col].values.tolist()
-           
             if display_text:
                 headers = {table_headers}
                 rows = [
@@ -385,11 +392,9 @@ class EvaluateModelOperation(Operation):
                     ['R^2 (coefficient of determination)', 
                      r2_score(y_true, y_pred)],
                 ]
-                
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',
                         headers, rows, title='{title}')
-
                 emit_event(
                     'update task', status='COMPLETED',
                     identifier='{task_id}',
@@ -398,8 +403,6 @@ class EvaluateModelOperation(Operation):
                     task={{'id': '{task_id}'}},
                     operation={{'id': {operation_id}}},
                     operation_id={operation_id})
-                    
-                
             if len(y_true) < 2000 and display_image:
                 residuals = [t - p for t, p in zip(y_true, y_pred)]
                 pandas_df = pd.DataFrame.from_records(
@@ -408,7 +411,6 @@ class EvaluateModelOperation(Operation):
                             for x in zip(y_pred, residuals)
                     ]
                 )
-
                 report = SeabornChartReport()
                 emit_event(
                     'update task', status='COMPLETED',
@@ -420,7 +422,6 @@ class EvaluateModelOperation(Operation):
                     task=dict(id='{task_id}'),
                     operation=dict(id={operation_id}),
                     operation_id={operation_id})
-                    
         """))
 
     @staticmethod
@@ -428,13 +429,11 @@ class EvaluateModelOperation(Operation):
         """
         Return code for model's summary (test if it is present)
         """
-        code.append(dedent("""
-            # model's summary
+        code.append(dedent("""                               
+            # model's summary       
             if len(y_true) < 2000 and display_image:
-                
                 report2 = MatplotlibChartReport()
-
-                identity = range(int(max(y_true[-1], y_pred[-1])))
+                identity = range(int(max(final_label[-1], final_pred[-1])))
                 emit_event(
                      'update task', status='COMPLETED',
                     identifier='{task_id}',
@@ -443,25 +442,21 @@ class EvaluateModelOperation(Operation):
                         '{plot_x_title}',
                         '{plot_y_title}',
                         identity, identity, 'r.',
-                        y_true, y_pred,'b.',),
+                        final_label, final_pred,'b.',),
                     type='IMAGE', title='{join_plot_title}',
                     task=dict(id='{task_id}'),
                     operation=dict(id={operation_id}),
                     operation_id={operation_id})
-                    
             if display_text:
                 rows = []
                 headers = {params_table_headers}
                 params = {model}.get_params()
-                #print({model})
                 for p in params:
                     rows.append([p, params[p]])
-                    
                 content = SimpleTableReport(
                         'table table-striped table-bordered table-sm',
                         headers, rows,
                         title='{params_title}')
-
                 emit_event(
                     'update task', status='COMPLETED',
                     identifier='{task_id}',
@@ -584,10 +579,8 @@ class CrossValidationOperation(Operation):
                   shuffle=True)
                   X_train = {input_data}['{feature_attr}'].values
                   y = {input_data}['{label_attr}'].values
-
                   scores = cross_val_score({algorithm}, X_train.tolist(), 
                                            y.tolist(), cv=kf, scoring='{metric}')
-
                   best_score = np.argmax(scores)
                   """.format(algorithm=self.algorithm_port,
                              input_data=self.input_port,

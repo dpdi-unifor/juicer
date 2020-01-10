@@ -1,6 +1,10 @@
 from textwrap import dedent
-
 from juicer.operation import Operation
+import json
+try:
+    from itertools import zip_longest as zip_longest
+except ImportError:
+    from itertools import zip_longest as zip_longest
 
 
 # TODO: https://spark.apache.org/docs/2.2.0/ml-features.html#vectorassembler
@@ -261,20 +265,22 @@ class OneHotEncoderOperation(Operation):
 
             if self.ATTRIBUTE_PARAM not in parameters:
                 raise ValueError(
-                        _("Parameters '{}' must be informed for task {}")
+                    _("Parameters '{}' must be informed for task {}")
                         .format('attributes', self.__class__))
 
             self.output = self.named_outputs.get(
-                    'output data', 'output_data_{}'.format(self.order))
-            self.attributes = parameters[self.ATTRIBUTE_PARAM]
-            self.alias = '_'+parameters.get(self.ALIAS_PARAM, 'onehotenc')
-            
+                'output data', 'output_data_{}'.format(self.order))
+            self.attribute = parameters[self.ATTRIBUTE_PARAM]
+            self.alias = '_'+parameters.get(self.ALIAS_PARAM,
+                                        'onehotenc_{}'.format(self.order))
+
     def generate_code(self):
         """Generate code."""
         code = """
         {output} = {input}
         from sklearn.preprocessing import OneHotEncoder
         enc = OneHotEncoder()
+
         attributes = {att}
         for attr in attributes:
             X_train = {input}[attr].to_numpy().reshape(len({input}), 1).tolist()
@@ -417,3 +423,58 @@ class LSHOperation(Operation):
                        model=self.model)
 
         return dedent(code)
+
+
+class StringIndexerOperation(Operation):
+    """
+    A label indexer that maps a string attribute of labels to an ML attribute of
+    label indices (attribute type = STRING) or a feature transformer that merges
+    multiple attributes into a vector attribute (attribute type = VECTOR). All
+    other attribute types are first converted to STRING and them indexed.
+    """
+    ATTRIBUTES_PARAM = 'attributes'
+    ALIAS_PARAM = 'alias'
+
+    def __init__(self, parameters, named_inputs, named_outputs):
+        Operation.__init__(self, parameters, named_inputs, named_outputs)
+
+        if self.ATTRIBUTES_PARAM in parameters:
+            self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+        else:
+            raise ValueError(
+                _("Parameter '{}' must be informed for task {}").format(
+                    self.ATTRIBUTES_PARAM, self.__class__))
+        self.alias = [alias.strip() for alias in
+                      parameters.get(self.ALIAS_PARAM, '').split(',')]
+
+        # Adjust alias in order to have the same number of aliases as attributes
+        # by filling missing alias with the attribute name suffixed by _indexed.
+        self.alias = [x[1] or '{}_indexed'.format(x[0]) for x in
+                      zip_longest(self.attributes,
+                                  self.alias[:len(self.attributes)])]
+        self.has_import = \
+            """
+            from sklearn.preprocessing import LabelEncoder
+            """
+
+    def generate_code(self):
+        input_data = self.named_inputs['input data']
+        output = self.named_outputs.get('output data',
+                                        'out_task_{}'.format(self.order))
+
+        models = self.named_outputs.get('models',
+                                        'models_task_{}'.format(self.order))
+        code = dedent("""
+           {output} = {input}.copy()
+           {models} = dict()
+           le = LabelEncoder()
+           for col, new_col in zip({columns}, {alias}):
+                data = {input}[col].values.tolist()
+                {models}[new_col] = le.fit_transform(data)
+                {output}[new_col] =le.fit_transform(data)    
+           """.format(input=input_data,
+                      output=output,
+                      models=models,
+                      columns=self.attributes,
+                      alias=self.alias))
+        return code

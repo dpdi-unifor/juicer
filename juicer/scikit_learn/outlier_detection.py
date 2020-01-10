@@ -18,6 +18,8 @@ class OutlierDetectionOperation(Operation):
     METRIC_PARAMS_ATTRIBUTE_PARAM = 'metric_params'
     NOVELTY_ATTRIBUTE_PARAM = 'novelty'
     N_JOBS_ATTRIBUTE_PARAM = 'n_jobs'
+    FEATURES_PARAM = 'features'
+    OUTLIER_PARAM = 'outlier'
 
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
@@ -36,6 +38,8 @@ class OutlierDetectionOperation(Operation):
         self.metric_params = parameters.get(self.METRIC_PARAMS_ATTRIBUTE_PARAM, None)
         self.novelty = int(parameters.get(self.NOVELTY_ATTRIBUTE_PARAM, 0))
         self.n_jobs = int(parameters.get(self.N_JOBS_ATTRIBUTE_PARAM, 0))
+        self.features = parameters['features']
+        self.outlier = self.parameters.get(self.OUTLIER_PARAM, 'outlier')
 
         self.input_treatment()
         self.has_import = \
@@ -62,7 +66,7 @@ class OutlierDetectionOperation(Operation):
             raise ValueError(
                 _("Parameter '{}' must be x>=0 and x<=0.5 for task {}").format(
                     self.CONTAMINATION_ATTRIBUTE_PARAM, self.__class__))
-        if self.metric == "minkowski":
+        if self.metric is 'minkowski':
             if self.p <= 0:
                 raise ValueError(
                     _("Parameter '{}' must be x>0 for task {}").format(
@@ -77,13 +81,20 @@ class OutlierDetectionOperation(Operation):
 
         code = """
             {output_data} = {input}.copy()
-            clf = LocalOutlierFactor(n_neighbors={number_neighbors}, contamination={contamination}, 
-                                         metric="{metric}", algorithm="{algorithm}", n_jobs={n_jobs}, 
-                                         leaf_size={leaf_size}, novelty={novelty}, p={p}, metric_params={metric_params})
-            X = {input}.values.tolist()
+            if '{metric}' is 'minkowski':
+                clf = LocalOutlierFactor(n_neighbors={number_neighbors}, contamination={contamination}, 
+                                             metric='{metric}', algorithm='{algorithm}', n_jobs={n_jobs}, 
+                                             leaf_size={leaf_size}, novelty={novelty}, p={p},
+                                             metric_params={metric_params})
+            else:
+                clf = LocalOutlierFactor(n_neighbors={number_neighbors}, contamination={contamination}, 
+                                             metric='{metric}', algorithm='{algorithm}', n_jobs={n_jobs}, 
+                                             leaf_size={leaf_size}, novelty={novelty}, metric_params={metric_params})
+            
+            X = {input}[{columns}].values.tolist()
             p = clf.fit_predict(X).astype(float)
             clf2 = clf.negative_outlier_factor_ 
-            T2 = pd.DataFrame(p, columns = ['Outlier'])
+            T2 = pd.DataFrame(p, columns = ['{outlier}'])
             {output_data} = pd.concat([{input},T2],axis=1)
             """.format(output=self.output,
                        input=self.named_inputs['input data'],
@@ -96,6 +107,8 @@ class OutlierDetectionOperation(Operation):
                        novelty=self.novelty,
                        p=self.p,
                        metric_params=self.metric_params,
-                       output_data=self.output)
+                       output_data=self.output,
+                       columns=self.features,
+                       outlier=self.outlier)
 
         return dedent(code)

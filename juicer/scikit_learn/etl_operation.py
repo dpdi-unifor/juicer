@@ -999,7 +999,7 @@ class SplitKFoldOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = True
+        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
 
         self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -1010,7 +1010,7 @@ class SplitKFoldOperation(Operation):
         self.label = parameters.get(self.LABEL_ATTRIBUTE_PARAM, None)
         self.attribute = parameters.get(self.ATTRIBUTE_ATTRIBUTE_PARAM, None)
         self.stratified = int(parameters.get(self.STRATIFIED_ATTRIBUTE_PARAM, 0))
-        self.column = parameters['column'][0]
+        self.column = 0
 
         self.input_treatment()
         self.has_import = \
@@ -1032,6 +1032,8 @@ class SplitKFoldOperation(Operation):
 
         self.shuffle = True if int(self.shuffle) == 1 else False
         self.stratified = True if int(self.stratified) == 1 else False
+        if self.stratified:
+            self.column = self.parameters['column'][0]
 
     def generate_code(self):
         """Generate code."""
@@ -1039,10 +1041,13 @@ class SplitKFoldOperation(Operation):
         if self.stratified:
             code = """
                 {output_data} = {input}.copy()
-                skf = StratifiedKFold(n_splits={n_splits}, shuffle={shuffle}, random_state={random_state})
+                if {shuffle}:
+                    skf = StratifiedKFold(n_splits={n_splits}, shuffle={shuffle}, random_state={random_state})
+                else:
+                    skf = StratifiedKFold(n_splits={n_splits}, shuffle={shuffle})
                 lista = []
                 j = 0
-                for train_index, test_index in skf.split({input}.values.tolist(), {input}['{column}'].values.tolist()):
+                for train_index, test_index in skf.split({input}.to_numpy().tolist(), {input}['{column}'].to_numpy()):
                     for i in range(len(test_index)):
                         test_index[i] = j
                     lista = np.concatenate((lista,test_index))
@@ -1061,10 +1066,13 @@ class SplitKFoldOperation(Operation):
         else:
             code = """
                 {output_data} = {input}.copy()
-                kf = KFold(n_splits={n_splits}, shuffle={shuffle}, random_state={random_state})
+                if {shuffle}:
+                    kf = KFold(n_splits={n_splits}, shuffle={shuffle}, random_state={random_state})
+                else:
+                    kf = KFold(n_splits={n_splits}, shuffle={shuffle})
                 lista = []
                 j = 0
-                for train_index, test_index in kf.split({input}.values.tolist()):
+                for train_index, test_index in kf.split({input}.to_numpy().tolist()):
                     for i in range(len(test_index)):
                         test_index[i] = j
                     lista = np.concatenate((lista,test_index))

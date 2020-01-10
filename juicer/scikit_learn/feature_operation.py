@@ -266,21 +266,23 @@ class OneHotEncoderOperation(Operation):
 
             self.output = self.named_outputs.get(
                     'output data', 'output_data_{}'.format(self.order))
-            self.attribute = parameters[self.ATTRIBUTE_PARAM][0]
-            self.alias = parameters.get(self.ALIAS_PARAM,
-                                        self.attribute + '_norm')
-
+            self.attributes = parameters[self.ATTRIBUTE_PARAM]
+            self.alias = '_'+parameters.get(self.ALIAS_PARAM, 'onehotenc')
+            
     def generate_code(self):
         """Generate code."""
         code = """
         {output} = {input}
         from sklearn.preprocessing import OneHotEncoder
         enc = OneHotEncoder()
-        X_train = {input}['{att}'].values.tolist()
-        {output}['{alias}'] = enc.fit_transform(X_train).toarray().tolist()
+        attributes = {att}
+        for attr in attributes:
+            X_train = {input}[attr].to_numpy().reshape(len({input}), 1).tolist()
+            {output}[attr+'{alias}'] = enc.fit_transform(X_train).toarray().tolist()
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
-                   att=self.attribute, alias=self.alias)
+                   att=self.attributes,
+                   alias=self.alias)
         return dedent(code)
 
 

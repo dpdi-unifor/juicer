@@ -42,6 +42,37 @@ import traceback
 def sklearn_logging(msg):
     print(msg)
 
+
+def get_X_train_data(df, features):
+
+    column_list = []
+    for feature in features:
+        #Validating OneHotEncode data existence
+        if isinstance(df[feature].iloc[0], list):
+            column_list.append(feature)
+    columns = [col for col in features if col not in column_list]
+
+    tmp1 = df[columns].to_numpy()
+    if(len(column_list) > 0):
+        tmp2 = df[column_list].sum(axis=1).to_numpy().tolist()
+        output = np.concatenate((tmp1, tmp2), axis=1).tolist()
+    else:
+        output = tmp1.tolist()
+    return output
+
+def get_label_data(df, labels):
+    #Validating multiple columns on label
+    if len(labels) > 1:
+        raise ValueError(_('Label must be a single column of dataset'))
+    
+    #Validating OneHotEncode data existence
+    if isinstance(df[labels[0]].iloc[0], list):
+        raise ValueError(_('Label must be primitive type data'))
+        
+    y = df[labels].to_numpy().tolist()
+    return np.reshape(y, len(y))
+
+
 executor = ThreadPoolExecutor(max_workers=3*{{instances|length}})
 task_futures = {}
 

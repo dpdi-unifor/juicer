@@ -38,9 +38,9 @@ class ApplyModelOperation(Operation):
         code = dedent("""
             {out} = {in1}
             if 'isotonic-regression-model' in {parent}:
-                 X_test = np.array({in1}[{features}].values.tolist()).flatten()
+                X_test = np.array({in1}[{features}].values.tolist()).flatten()
             else:
-                X_test = np.array({in1}[{features}].values.tolist())
+                X_test = get_X_train_data({in1}, {features})
             {out}['{new_attr}'] = {model}.predict(X_test).tolist()
             """.format(out=output, in1=self.input_data1, model=model,
                        new_attr=self.new_attribute, features=self.feature, parent=self.parameters['parents_slug']))

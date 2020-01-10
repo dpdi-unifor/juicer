@@ -309,9 +309,21 @@ class LogisticRegressionOperation(Operation):
             self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_PARAM, 1)) == 1
             self.intercept_scaling = float(parameters.get(self.INTERCEPT_SCALING_PARAM, 1.0))
             self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0))
+            if(self.verbose < 0):
+                raise ValueError(
+                        _("Parameter '{}' must be x>=0 for task {}").format(
+                            self.VERBOSE_PARAM, self.__class__))
+
 
             n_jobs_ = parameters.get(self.N_JOBS_PARAM, None)
-            self.n_jobs = int(n_jobs_) if n_jobs_ is not None else 'None'
+            if n_jobs_ is not None:
+                self.n_jobs = int(n_jobs_)
+                if(self.n_jobs <= 0):
+                    raise ValueError(
+                            _("Parameter '{}' must be x>0 for task {}").format(
+                                    self.N_JOBS_PARAM, self.__class__))
+            else:
+                 self.n_jobs = 'None'
 
             l1_ratio_param_ = parameters.get(self.L1_RATIO_PARAM, None)
             if(l1_ratio_param_ is not None):
@@ -326,8 +338,8 @@ class LogisticRegressionOperation(Operation):
 
             self.multi_class = parameters.get(self.MULTI_CLASS_PARAM, 'ovr') or 'ovr'
 
-            vals = [self.regularization, self.max_iter, self.n_jobs, self.verbose]
-            atts = [self.REGULARIZATION_PARAM, self.MAX_ITER_PARAM, self.N_JOBS_PARAM, self.VERBOSE_PARAM]
+            vals = [self.regularization, self.max_iter]
+            atts = [self.REGULARIZATION_PARAM, self.MAX_ITER_PARAM]
             for var, att in zip(vals, atts):
                 if var <= 0:
                     raise ValueError(
@@ -343,7 +355,7 @@ class LogisticRegressionOperation(Operation):
             }
             if(self.penalty not in solver_dict[self.solver]):
                 raise ValueError(
-                    ("For '{}' solver, the penalty type must be in {} for task {}").format(
+                    _("For '{}' solver, the penalty type must be in {} for task {}").format(
                         self.solver, str(solver_dict[self.solver]), self.__class__))
 
             self.has_import = \
@@ -365,9 +377,8 @@ class LogisticRegressionOperation(Operation):
             multi_class='{multi_class}', verbose={verbose}, n_jobs={n_jobs},
             l1_ratio={l1_ratio})
 
-            X_train = {input}[{features}].to_numpy().tolist()
-            y = {input}[{label}].to_numpy().tolist()
-            y = np.reshape(y, len(y))
+            X_train = get_X_train_data({input}, {features})
+            y = get_label_data({input}, {label})
             {model}.fit(X_train, y)
 
             {output} = {input}.copy()
@@ -732,9 +743,8 @@ class RandomForestClassifierOperation(Operation):
         oob_score={oob_score}, n_jobs={n_jobs}, verbose={verbose},
         ccp_alpha={ccp_alpha}, max_samples={max_samples})
 
-        X_train = {input}[{features}].to_numpy().tolist()
-        y = {input}[{label}].to_numpy().tolist()
-        y = np.reshape(y, len(y))
+        X_train = get_X_train_data({input}, {features})
+        y = get_label_data({input}, {label})
         {model}.fit(X_train, y)
 
         {output} = {input}.copy()
@@ -850,9 +860,8 @@ class SvmClassifierOperation(Operation):
                        decision_function_shape='{decision_func_shape}',
                        class_weight=None, verbose=False)
 
-        X_train = {input}[{features}].to_numpy().tolist()
-        y = {input}[{label}].to_numpy().tolist()
-        y = np.reshape(y, len(y))
+        X_train = get_X_train_data({input}, {features})
+        y = get_label_data({input}, {label})
         {model}.fit(X_train, y)
 
         {output} = {input}.copy()

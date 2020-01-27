@@ -387,12 +387,12 @@ class KNNClassifierOperation(Operation):
             'train input data', 'input_data_{}'.format(self.order))
 
         if self.has_code:
-            if self.K_PARAM not in parameters:
+            if parameters.get(self.K_PARAM, None) is None:
                 raise ValueError(
                     _("Parameter '{}' must be informed for task {}")
                     .format(self.K_PARAM, self.__class__))
 
-            self.n_neighbors = int(self.parameters.get(self.K_PARAM, 5) or 5)
+            self.n_neighbors = int(self.parameters.get(self.K_PARAM, 5)) or 5
             self.weights = self.parameters.get(self.WEIGHTS_PARAM, 'uniform') or 'uniform'
             self.algorithm = self.parameters.get(self.ALGORITHM_PARAM, 'auto') or 'auto'
             self.leaf_size = int(self.parameters.get(self.LEAF_SIZE_PARAM, 30) or 30)
@@ -433,10 +433,9 @@ class KNNClassifierOperation(Operation):
     def generate_code(self):
         """Generate code."""
         code = """
-            {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{features}].to_numpy().tolist()
-            y = {input_data}[{label}].to_numpy().tolist()
-            y = np.reshape(y, len(y))
+            {output_data} = {input_data}.copy()
+            X_train = get_X_train_data({input_data}, {features})
+            y = get_label_data({input_data}, {label})
             {model} = KNeighborsClassifier(n_neighbors={n_neighbors}, weights='{weights}', algorithm='{algorithm}', 
                                            leaf_size={leaf_size}, p={p}, metric='{metric}', 
                                            metric_params={metric_params}, n_jobs={n_jobs})
@@ -834,10 +833,9 @@ class MLPClassifierOperation(Operation):
     def generate_code(self):
         """Generate code."""
         code = """
-            {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{columns}].to_numpy().tolist()
-            y = {input_data}[{label}].to_numpy().tolist()
-            y = np.reshape(y, len(y))
+            {output_data} = {input_data}.copy()
+            X_train = get_X_train_data({input_data}, {columns})
+            y = get_label_data({input_data}, {label})
             {model} = MLPClassifier({add_functions_required})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -942,10 +940,9 @@ class NaiveBayesClassifierOperation(Operation):
         """Generate code."""
         if self.model_type == self.MODEL_TYPE_PARAM_M:
             code = """
-                {output_data} = {input_data}.copy()            
-                X_train = {input_data}[{features}].to_numpy().tolist()
-                y = {input_data}[{label}].to_numpy().tolist()
-                y = np.reshape(y, len(y))
+                {output_data} = {input_data}.copy()
+                X_train = get_X_train_data({input_data}, {features})
+                y = get_label_data({input_data}, {label})
                 {model} = MultinomialNB(alpha={alpha}, class_prior={class_prior}, fit_prior={fit_prior})
                 {model}.fit(X_train, y)          
                 {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -960,10 +957,9 @@ class NaiveBayesClassifierOperation(Operation):
                            fit_prior=self.fit_prior)
         elif self.model_type == self.MODEL_TYPE_PARAM_B:
             code = """
-                {output_data} = {input_data}.copy()            
-                X_train = {input_data}[{features}].to_numpy().tolist()
-                y = {input_data}[{label}].to_numpy().tolist()
-                y = np.reshape(y, len(y))
+                {output_data} = {input_data}.copy()
+                X_train = get_X_train_data({input_data}, {features})
+                y = get_label_data({input_data}, {label})
                 {model} = BernoulliNB(alpha={alpha}, class_prior={class_prior}, fit_prior={fit_prior}, 
                                             binarize={binarize})
                 {model}.fit(X_train, y)          
@@ -981,9 +977,8 @@ class NaiveBayesClassifierOperation(Operation):
         else:
             code = """
                 {output_data} = {input_data}.copy()            
-                X_train = {input_data}[{features}].to_numpy().tolist()
-                y = {input_data}[{label}].to_numpy().tolist()
-                y = np.reshape(y, len(y))
+                X_train = get_X_train_data({input_data}, {features})
+                y = get_label_data({input_data}, {label})
                 {model} = GaussianNB(priors={priors}, var_smoothing={var_smoothing})  
                 {model}.fit(X_train, y)          
                 {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -1100,10 +1095,10 @@ class PerceptronClassifierOperation(Operation):
     def generate_code(self):
         """Generate code."""
         code = """
-            {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{features}].to_numpy().tolist()
-            y = {input_data}[{label}].to_numpy().tolist()
-            y = np.reshape(y, len(y))
+            {output_data} = {input_data}.copy()
+            X_train = get_X_train_data({input_data}, {features})
+            y = get_label_data({input_data}, {label})
+
             if {early_stopping} == 1:
                 {model} = Perceptron(tol={tol}, alpha={alpha}, max_iter={max_iter}, shuffle={shuffle}, 
                                       random_state={seed}, penalty='{penalty}', fit_intercept={fit_intercept}, 

@@ -104,3 +104,8 @@ juicer*.yaml
 
 # Test Scripts
 ajuda.py
+
+# PyFim
+README
+MANIFEST.in
+dask-worker-space

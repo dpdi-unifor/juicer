@@ -10,7 +10,7 @@ import re
 import simplejson
 from six import text_type
 import collections
-
+import numpy as np
 
 def is_numeric(schema, col):
     import pyspark.sql.types as spark_types
@@ -230,6 +230,8 @@ def emit_sample_sklearn(task_id, df, emit_event, name, size=50, notebook=False):
                 value = col.isoformat()
             elif isinstance(col, number_types):
                 value = str(col)
+            elif isinstance(col, np.ndarray):
+                value = json.dumps(col.tolist(), cls=CustomEncoder)
             else:
                 value = json.dumps(col, cls=CustomEncoder)
             # truncate column if size is bigger than 200 chars.

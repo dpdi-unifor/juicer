@@ -255,7 +255,7 @@ class OneHotEncoderOperation(Operation):
     """
 
     ALIAS_PARAM = 'alias'
-    ATTRIBUTE_PARAM = 'attributes'
+    ATTRIBUTES_PARAM = 'attributes'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
@@ -263,16 +263,24 @@ class OneHotEncoderOperation(Operation):
         self.has_code = len(self.named_inputs) == 1
         if self.has_code:
 
-            if self.ATTRIBUTE_PARAM not in parameters:
+            if self.ATTRIBUTES_PARAM in parameters:
+                self.attributes = parameters.get(self.ATTRIBUTES_PARAM)
+            else:
                 raise ValueError(
                     _("Parameters '{}' must be informed for task {}")
                         .format('attributes', self.__class__))
 
             self.output = self.named_outputs.get(
                 'output data', 'output_data_{}'.format(self.order))
-            self.attribute = parameters[self.ATTRIBUTE_PARAM]
-            self.alias = '_'+parameters.get(self.ALIAS_PARAM,
-                                        'onehotenc_{}'.format(self.order))
+
+            self.alias = [alias.strip() for alias in
+                            parameters.get(self.ALIAS_PARAM, '').split(',')]
+
+            # Adjust alias in order to have the same number of aliases as attributes
+            # by filling missing alias with the attribute name suffixed by _onehotenc.
+            self.alias = [x[1] or '{}_onehotenc'.format(x[0]) for x in
+                          zip_longest(self.attributes,
+                                      self.alias[:len(self.attributes)])]
 
     def generate_code(self):
         """Generate code."""
@@ -282,9 +290,10 @@ class OneHotEncoderOperation(Operation):
         enc = OneHotEncoder()
 
         attributes = {att}
-        for attr in attributes:
-            X_train = {input}[attr].to_numpy().reshape(len({input}), 1).tolist()
-            {output}[attr+'{alias}'] = enc.fit_transform(X_train).toarray().tolist()
+        aliasses = {alias}
+        for attr in zip(attributes, aliasses):
+            X_train = {input}[attr[0]].to_numpy().reshape(len({input}), 1).tolist()
+            {output}[attr[1]] = enc.fit_transform(X_train).toarray().tolist()
         """.format(output=self.output,
                    input=self.named_inputs['input data'],
                    att=self.attributes,

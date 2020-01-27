@@ -239,6 +239,20 @@ class KMeansClusteringOperation(Operation):
     TOLERANCE_PARAM = 'tolerance'
     TYPE_PARAM = 'type'
     SEED_PARAM = 'seed'
+    N_INIT_PARAM = 'n_init'
+    N_INIT_MB_PARAM = 'n_init_mb'
+    PRECOMPUTE_DISTANCES_PARAM = 'precompute_distances'
+    VERBOSE_PARAM = 'verbose'
+    COPY_X_PARAM = 'copy_x'
+    N_JOBS_PARAM = 'n_jobs'
+    ALGORITHM_PARAM = 'algorithm'
+    BATCH_SIZE_PARAM = 'batch_size'
+    COMPUTE_LABELS_PARAM = 'compute_labels'
+    TOL_PARAM = 'tol'
+    MAX_NO_IMPROVEMENT_PARAM = 'max_no_improvement'
+    INIT_SIZE_PARAM = 'init_size'
+    REASSIGNMENT_RATIO_PARAM = 'reassignment_ratio'
+    PREDICTION_PARAM = 'prediction'
 
     INIT_PARAM_RANDOM = 'random'
     INIT_PARAM_KM = 'K-Means++'
@@ -248,19 +262,43 @@ class KMeansClusteringOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = len(named_outputs) > 0
-        if self.has_code:
-            self.output = named_outputs.get(
-                    'algorithm', 'clustering_algorithm_{}'.format(self.order))
+        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
 
-            self.n_clusters = parameters.get(self.N_CLUSTERS_PARAM, 8) or 8
-            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 300) or 300
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
+
+        self.input_port = self.named_inputs.get(
+            'train input data', 'input_data_{}'.format(self.order))
+        if self.has_code:
+            self.features = parameters['features']
+            self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+
+            self.n_init = int(parameters.get(self.N_INIT_PARAM, 10) or 10)
+            self.precompute_distances = parameters.get(self.PRECOMPUTE_DISTANCES_PARAM, 'auto') or 'auto'
+            self.copy_x = int(parameters.get(self.COPY_X_PARAM, 1) or 1)
+            self.n_jobs = parameters.get(self.N_JOBS_PARAM, None) or None
+            self.algorithm = parameters.get(self.ALGORITHM_PARAM, 'auto') or 'auto'
+
+            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0) or 0)
+
+            self.n_init_mb = int(parameters.get(self.N_INIT_MB_PARAM, 3) or 3)
+            self.reassignment_ratio = float(parameters.get(self.REASSIGNMENT_RATIO_PARAM, 0.01) or 0.01)
+            self.tol = float(parameters.get(self.TOL_PARAM, 0.0) or 0.0)
+            self.compute_labels = int(parameters.get(self.COMPUTE_LABELS_PARAM, 1) or 1)
+            self.max_no_improvement = int(parameters.get(self.MAX_NO_IMPROVEMENT_PARAM, 10) or 10)
+            self.init_size = parameters.get(self.INIT_SIZE_PARAM, None) or None
+            self.batch_size = int(parameters.get(self.BATCH_SIZE_PARAM, 100) or 100)
+
+            self.n_clusters = int(parameters.get(self.N_CLUSTERS_PARAM, 8) or 8)
+            self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 100) or 100)
             self.init_mode = parameters.get(
                     self.INIT_PARAM, self.INIT_PARAM_KM) or self.INIT_PARAM_KM
             self.init_mode = self.init_mode.lower()
-            self.tolerance = parameters.get(self.TOLERANCE_PARAM, 0.001)
+            self.tolerance = parameters.get(self.TOLERANCE_PARAM, 1e-4)
             self.tolerance = abs(float(self.tolerance))
-            self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
+            self.seed = parameters.get(self.SEED_PARAM, None) or None
             self.type = parameters.get(
                     self.TYPE_PARAM,
                     self.TYPE_PARAM_KMEANS) or self.TYPE_PARAM_KMEANS
@@ -279,23 +317,98 @@ class KMeansClusteringOperation(Operation):
             else:
                 self.has_import = \
                     "from sklearn.cluster import MiniBatchKMeans\n"
+            self.input_treatment()
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
+    def input_treatment(self):
+        self.copy_x = True if int(self.copy_x) == 1 else False
+
+        self.compute_labels = True if int(self.compute_labels) == 1 else False
+
+        if self.seed is not None and self.seed != '0':
+            self.seed = int(self.seed)
+        else:
+            self.seed = None
+
+        if self.n_jobs is not None and self.n_jobs != '0':
+            self.n_jobs = int(self.n_jobs)
+        else:
+            self.n_jobs = None
+
+        if self.init_size is not None and self.init_size != '0':
+            self.init_size = int(self.init_size)
+        else:
+            self.init_size = None
+
+        if self.precompute_distances == 'true':
+            self.precompute_distances = True
+        elif self.precompute_distances == 'false':
+            self.precompute_distances = False
 
     def generate_code(self):
         """Generate code."""
         if self.type.lower() == "k-means":
             code = """
-            {output} = KMeans(n_clusters={k}, init='{init}',
-                max_iter={max_iter}, tol={tol}, random_state={seed})
-            """.format(k=self.n_clusters, max_iter=self.max_iter,
-                       tol=self.tolerance, init=self.init_mode,
-                       output=self.output, seed=self.seed)
+            {output_data} = {input_data}.copy()
+            X_train = {input_data}[{columns}].to_numpy().tolist()
+            if '{precompute_distances}' == 'auto':
+                {model} = KMeans(n_clusters={k}, init='{init}', max_iter={max_iter}, tol={tol}, random_state={seed}, 
+                                  n_init={n_init}, precompute_distances='{precompute_distances}', copy_x={copy_x}, 
+                                  n_jobs={n_jobs}, algorithm='{algorithm}', verbose={verbose})
+            else:
+                {model} = KMeans(n_clusters={k}, init='{init}', max_iter={max_iter}, tol={tol}, random_state={seed}, 
+                                  n_init={n_init}, precompute_distances={precompute_distances}, copy_x={copy_x}, 
+                                  n_jobs={n_jobs}, algorithm='{algorithm}', verbose={verbose})
+            {output_data}['{prediction}'] = {model}.fit_predict(X_train)
+            """.format(k=self.n_clusters,
+                       max_iter=self.max_iter,
+                       tol=self.tolerance,
+                       init=self.init_mode,
+                       output_data=self.output,
+                       seed=self.seed,
+                       model=self.model,
+                       input_data=self.input_port,
+                       prediction=self.prediction,
+                       columns=self.features,
+                       n_init=self.n_init,
+                       precompute_distances=self.precompute_distances,
+                       copy_x=self.copy_x,
+                       n_jobs=self.n_jobs,
+                       algorithm=self.algorithm,
+                       verbose=self.verbose)
         else:
             code = """
-            {output} = MiniBatchKMeans(n_clusters={k}, init='{init}',
-                max_iter={max_iter}, tol={tol}, random_state={seed})
-            """.format(k=self.n_clusters, max_iter=self.max_iter,
-                       tol=self.tolerance, init=self.init_mode,
-                       output=self.output, seed=self.seed)
+            {output_data} = {input_data}.copy()
+            X_train = {input_data}[{columns}].to_numpy().tolist()
+            {model} = MiniBatchKMeans(n_clusters={k}, init='{init}', max_iter={max_iter}, tol={tol}, 
+                                       random_state={seed}, verbose={verbose}, n_init={n_init}, 
+                                       reassignment_ratio={reassignment_ratio}, compute_labels={compute_labels}, 
+                                       max_no_improvement={max_no_improvement}, init_size={init_size}, 
+                                       batch_size={batch_size})
+            {output_data}['{prediction}'] = {model}.fit_predict(X_train)
+            """.format(k=self.n_clusters,
+                       max_iter=self.max_iter,
+                       tol=self.tol,
+                       init=self.init_mode,
+                       output_data=self.output,
+                       seed=self.seed,
+                       model=self.model,
+                       input_data=self.input_port,
+                       prediction=self.prediction,
+                       columns=self.features,
+                       verbose=self.verbose,
+                       n_init=self.n_init_mb,
+                       reassignment_ratio=self.reassignment_ratio,
+                       compute_labels=self.compute_labels,
+                       max_no_improvement=self.max_no_improvement,
+                       init_size=self.init_size,
+                       batch_size=self.batch_size)
         return dedent(code)
 
 

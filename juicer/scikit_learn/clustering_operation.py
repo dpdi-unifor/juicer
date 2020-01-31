@@ -73,63 +73,109 @@ class AgglomerativeClusteringOperation(Operation):
     N_CLUSTERS_PARAM = 'number_of_clusters'
     LINKAGE_PARAM = 'linkage'
     AFFINITY_PARAM = 'affinity'
+    MEMORY_PARAM = 'memory'
+    CONNECTIVITY_PARAM = 'connectivity'
+    COMPUTE_PARAM = 'compute_full_tree'
+    DISTANCE_PARAM = 'distance_threshold'
 
     AFFINITY_PARAM_EUCL = 'euclidean'
     AFFINITY_PARAM_L1 = 'l1'
     AFFINITY_PARAM_L2 = 'l2'
     AFFINITY_PARAM_MA = 'manhattan'
     AFFINITY_PARAM_COS = 'cosine'
+    AFFINITY_PARAM_PRE = 'precomputed'
 
     LINKAGE_PARAM_WARD = 'ward'
     LINKAGE_PARAM_COMP = 'complete'
     LINKAGE_PARAM_AVG = 'average'
+    LINKAGE_PARAM_SIN = 'single'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         Operation.__init__(self, parameters, named_inputs, named_outputs)
 
-        self.has_code = len(named_inputs) > 0 and any([self.contains_results(),
-                                                       len(named_outputs) > 0])
-        if self.has_code:
-            self.output = named_outputs.get(
-                    'output data', 'output_data_{}'.format(self.order))
+        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
+        self.output = self.named_outputs.get(
+            'output data', 'output_data_{}'.format(self.order))
 
-            if self.FEATURES_PARAM not in parameters:
-                raise \
-                    ValueError(_("Parameter '{}' must be informed for task {}")
-                               .format(self.FEATURES_PARAM, self.__class__))
+        self.model = self.named_outputs.get(
+            'model', 'model_{}'.format(self.order))
 
-            self.features = parameters.get(self.FEATURES_PARAM)[0]
-            self.alias = parameters.get(self.ALIAS_PARAM, 'cluster')
+        self.input_port = self.named_inputs.get(
+            'input data', 'input_data_{}'.format(self.order))
 
-            self.n_clusters = parameters.get(self.N_CLUSTERS_PARAM, 2) or 2
-            self.linkage = parameters.get(
-                    self.LINKAGE_PARAM,
-                    self.LINKAGE_PARAM_WARD) or self.LINKAGE_PARAM_WARD
-            self.affinity = parameters.get(
-                    self.AFFINITY_PARAM,
-                    self.AFFINITY_PARAM_EUCL) or self.AFFINITY_PARAM_EUCL
+        if self.FEATURES_PARAM not in parameters:
+            raise ValueError(
+                     _("Parameter '{}' must be informed for task {}").format(self.FEATURES_PARAM, self.__class__))
 
-            if self.n_clusters <= 0:
-                raise ValueError(
-                        _("Parameter '{}' must be x>0 for task {}").format(
-                                self.N_CLUSTERS_PARAM, self.__class__))
+        self.features = parameters['attributes']
+        self.alias = parameters.get(self.ALIAS_PARAM, 'cluster')
+        self.memory = parameters.get(self.MEMORY_PARAM, None)
+        self.connectivity = parameters.get(self.CONNECTIVITY_PARAM, None)
+        self.compute_full_tree = parameters.get(self.COMPUTE_PARAM, 'auto')
+        self.distance_threshold = parameters.get(self.DISTANCE_PARAM, None)
+        self.n_clusters = int(parameters.get(self.N_CLUSTERS_PARAM, 2) or 2)
+        self.linkage = parameters.get(
+            self.LINKAGE_PARAM,
+            self.LINKAGE_PARAM_WARD) or self.LINKAGE_PARAM_WARD
+        self.affinity = parameters.get(
+            self.AFFINITY_PARAM,
+            self.AFFINITY_PARAM_EUCL) or self.AFFINITY_PARAM_EUCL
 
-            self.has_import = \
-                "from sklearn.cluster import AgglomerativeClustering\n"
+        if self.n_clusters <= 0:
+            raise ValueError(
+                     _("Parameter '{}' must be x>0 for task {}").format(
+                            self.N_CLUSTERS_PARAM, self.__class__))
+
+        self.has_import = \
+            "from sklearn.cluster import AgglomerativeClustering\n"
+        self.input_treatment()
+
+    @property
+    def get_data_out_names(self, sep=','):
+        return self.output
+
+    def get_output_names(self, sep=', '):
+        return sep.join([self.output, self.model])
+
+    def input_treatment(self):
+        if self.distance_threshold is not None and self.distance_threshold != '0':
+            self.distance_threshold = float(self.distance_threshold)
+        else:
+            self.distance_threshold = None
+
+        if self.compute_full_tree == 'true':
+            self.compute_full_tree = True
+        elif self.compute_full_tree == 'false':
+            self.compute_full_tree = False
 
     def generate_code(self):
         """Generate code."""
         code = """
-        {output} = {input}.copy()
-        
-        X = {output}['{features}'].values.tolist()
-        clt = AgglomerativeClustering(n_clusters={n_clusters},
-            linkage='{linkage}', affinity='{affinity}')
-        {output}['{alias}'] = clt.fit_predict(X)
-        """.format(input=self.named_inputs['input data'], output=self.output,
-                   features=self.features, alias=self.alias,
+        {output_data} = {input_data}.copy()
+        X = {output_data}[{features}].to_numpy().tolist()
+        if '{compute_full_tree}' == 'auto':
+            {model} = AgglomerativeClustering(n_clusters={n_clusters}, linkage='{linkage}', affinity='{affinity}', 
+                                              memory={memory}, connectivity={connectivity}, 
+                                              compute_full_tree='{compute_full_tree}', 
+                                              distance_threshold={distance_threshold})
+        else:
+            {model} = AgglomerativeClustering(n_clusters={n_clusters}, linkage='{linkage}', affinity='{affinity}', 
+                                              memory={memory}, connectivity={connectivity}, 
+                                              compute_full_tree={compute_full_tree}, 
+                                              distance_threshold={distance_threshold})
+        {output_data}['{alias}'] = {model}.fit_predict(X)
+        """.format(input_data=self.input_port,
+                   output_data=self.output,
+                   features=self.features,
+                   alias=self.alias,
                    n_clusters=self.n_clusters,
-                   affinity=self.affinity, linkage=self.linkage)
+                   affinity=self.affinity,
+                   linkage=self.linkage,
+                   model=self.model,
+                   memory=self.memory,
+                   connectivity=self.connectivity,
+                   compute_full_tree=self.compute_full_tree,
+                   distance_threshold=self.distance_threshold)
 
         return dedent(code)
 
@@ -172,7 +218,7 @@ class DBSCANClusteringOperation(Operation):
             self.n_jobs = parameters.get(self.N_JOBS_PARAM, None)
 
             if self.FEATURES_PARAM in parameters:
-                self.features = parameters.get(self.FEATURES_PARAM)[0]
+                self.features = parameters.get(self.FEATURES_PARAM)
             else:
                 raise \
                     ValueError(_("Parameter '{}' must be informed for task {}")
@@ -213,8 +259,7 @@ class DBSCANClusteringOperation(Operation):
         """Generate code."""
         code = """
         {output_data} = {input_data}.copy()
-        print({columns})
-        X_train = {input_data}[{columns}].to_numpy().tolist()
+        X_train = {output_data}[{columns}].to_numpy().tolist()
         if '{algorithm}' == 'kd_tree' or '{algorithm}' == 'ball_tree':
             {model} = DBSCAN(eps={eps}, min_samples={min_samples}, metric='{metric}', metric_params={metric_params}, 
                              algorithm='{algorithm}', leaf_size={leaf_size}, p={p}, n_jobs={n_jobs})

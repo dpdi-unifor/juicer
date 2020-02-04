@@ -56,9 +56,11 @@ class FrequentItemSetOperation(Operation):
         else:
             self.column = "'{}'".format(self.column)
 
+        # transactions = map(lambda row: row.tolist(), {input}[col])
         code = """
         col = {col}
-        transactions = {input}[col].values.tolist()
+
+        transactions = [row.tolist() for row in {input}[col].to_numpy().tolist()]
         min_support = 100 * {min_support}
         
         result = fpgrowth(transactions, target="s",
@@ -128,9 +130,11 @@ class SequenceMiningOperation(Operation):
         else:
             self.column = "'{}'".format(self.column)
 
+        # transactions = {input}[col].values.tolist()
+        # transactions = np.array({input}[col].to_numpy().tolist()).tolist()
         code = """
         col = {col}
-        transactions = {input}[col].values.tolist()
+        transactions = [row.tolist() for row in {input}[col].to_numpy().tolist()]
         min_support = {min_support}
         max_length = {max_length}
 

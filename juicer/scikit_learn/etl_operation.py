@@ -510,6 +510,7 @@ class ExecuteSQLOperation(Operation):
 
         self.has_code = any([len(self.named_outputs) > 0,
                              self.contains_results()])
+
         self.input1 = self.named_inputs.get('input data 1')
         self.input2 = self.named_inputs.get('input data 2')
         self.output = self.named_outputs.get('output data',

@@ -79,7 +79,7 @@ def retrieve_neighbors(index_center, df, col_latitude, col_longitude,
         if index != index_center:
             distance = great_circle(
                 (center_point[col_latitude], center_point[col_longitude]),
-                (point[col_latitude], point[col_longitude])).meters
+                (point[col_latitude], point[col_longitude]))
             if distance <= spatial_threshold:
                 neigborhood.append(index)
 

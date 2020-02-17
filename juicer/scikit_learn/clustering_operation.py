@@ -73,10 +73,6 @@ class AgglomerativeClusteringOperation(Operation):
     N_CLUSTERS_PARAM = 'number_of_clusters'
     LINKAGE_PARAM = 'linkage'
     AFFINITY_PARAM = 'affinity'
-    MEMORY_PARAM = 'memory'
-    CONNECTIVITY_PARAM = 'connectivity'
-    COMPUTE_PARAM = 'compute_full_tree'
-    DISTANCE_PARAM = 'distance_threshold'
 
     AFFINITY_PARAM_EUCL = 'euclidean'
     AFFINITY_PARAM_L1 = 'l1'
@@ -109,10 +105,6 @@ class AgglomerativeClusteringOperation(Operation):
 
         self.features = parameters['attributes']
         self.alias = parameters.get(self.ALIAS_PARAM, 'cluster')
-        self.memory = parameters.get(self.MEMORY_PARAM, None)
-        self.connectivity = parameters.get(self.CONNECTIVITY_PARAM, None)
-        self.compute_full_tree = parameters.get(self.COMPUTE_PARAM, 'auto')
-        self.distance_threshold = parameters.get(self.DISTANCE_PARAM, None)
         self.n_clusters = int(parameters.get(self.N_CLUSTERS_PARAM, 2) or 2)
         self.linkage = parameters.get(
             self.LINKAGE_PARAM,
@@ -128,7 +120,6 @@ class AgglomerativeClusteringOperation(Operation):
 
         self.has_import = \
             "from sklearn.cluster import AgglomerativeClustering\n"
-        self.input_treatment()
 
     @property
     def get_data_out_names(self, sep=','):
@@ -137,45 +128,20 @@ class AgglomerativeClusteringOperation(Operation):
     def get_output_names(self, sep=', '):
         return sep.join([self.output, self.model])
 
-    def input_treatment(self):
-        if self.distance_threshold is not None and self.distance_threshold != '0':
-            self.distance_threshold = float(self.distance_threshold)
-        else:
-            self.distance_threshold = None
-
-        if self.compute_full_tree == 'true':
-            self.compute_full_tree = True
-        elif self.compute_full_tree == 'false':
-            self.compute_full_tree = False
-
     def generate_code(self):
         """Generate code."""
         code = """
         {output_data} = {input_data}.copy()
         X = {output_data}[{features}].to_numpy().tolist()
-        if '{compute_full_tree}' == 'auto':
-            {model} = AgglomerativeClustering(n_clusters={n_clusters}, linkage='{linkage}', affinity='{affinity}', 
-                                              memory={memory}, connectivity={connectivity}, 
-                                              compute_full_tree='{compute_full_tree}', 
-                                              distance_threshold={distance_threshold})
-        else:
-            {model} = AgglomerativeClustering(n_clusters={n_clusters}, linkage='{linkage}', affinity='{affinity}', 
-                                              memory={memory}, connectivity={connectivity}, 
-                                              compute_full_tree={compute_full_tree}, 
-                                              distance_threshold={distance_threshold})
-        {output_data}['{alias}'] = {model}.fit_predict(X)
+        agg = AgglomerativeClustering(n_clusters={n_clusters}, linkage='{linkage}', affinity='{affinity}')
+        {output_data}['{alias}'] = agg.fit_predict(X)
         """.format(input_data=self.input_port,
                    output_data=self.output,
                    features=self.features,
                    alias=self.alias,
                    n_clusters=self.n_clusters,
                    affinity=self.affinity,
-                   linkage=self.linkage,
-                   model=self.model,
-                   memory=self.memory,
-                   connectivity=self.connectivity,
-                   compute_full_tree=self.compute_full_tree,
-                   distance_threshold=self.distance_threshold)
+                   linkage=self.linkage)
 
         return dedent(code)
 
@@ -186,11 +152,6 @@ class DBSCANClusteringOperation(Operation):
     FEATURES_PARAM = 'features'
     PREDICTION_PARAM = 'prediction'
     METRIC_PARAM = 'metric'
-    METRIC_PARAMS_PARAM = 'metric_params'
-    ALGORITHM_PARAM = 'algorithm'
-    LEAF_SIZE_PARAM = 'leaf_size'
-    P_PARAM = 'p'
-    N_JOBS_PARAM = 'n_jobs'
 
     def __init__(self, parameters, named_inputs,
                  named_outputs):
@@ -211,11 +172,6 @@ class DBSCANClusteringOperation(Operation):
             self.features = parameters['features']
             self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
             self.metric = parameters.get(self.METRIC_PARAM, 'euclidean')
-            self.metric_params = parameters.get(self.METRIC_PARAMS_PARAM, None) #DICT
-            self.algorithm = parameters.get(self.ALGORITHM_PARAM, 'auto')
-            self.leaf_size = int(parameters.get(self.LEAF_SIZE_PARAM, 30) or 30)
-            self.p = parameters.get(self.P_PARAM, None)
-            self.n_jobs = parameters.get(self.N_JOBS_PARAM, None)
 
             if self.FEATURES_PARAM in parameters:
                 self.features = parameters.get(self.FEATURES_PARAM)
@@ -235,7 +191,6 @@ class DBSCANClusteringOperation(Operation):
 
             self.has_import = \
                 "from sklearn.cluster import DBSCAN\n"
-            self.input_treatment()
 
     @property
     def get_data_out_names(self, sep=','):
@@ -244,42 +199,20 @@ class DBSCANClusteringOperation(Operation):
     def get_output_names(self, sep=', '):
         return sep.join([self.output, self.model])
 
-    def input_treatment(self):
-        if self.p is not None and self.p != '0':
-            self.p = float(self.p)
-        else:
-            self.p = None
-
-        if self.n_jobs is not None and self.n_jobs != '0':
-            self.n_jobs = int(self.n_jobs)
-        else:
-            self.n_jobs = None
-
     def generate_code(self):
         """Generate code."""
         code = """
         {output_data} = {input_data}.copy()
         X_train = {output_data}[{columns}].to_numpy().tolist()
-        if '{algorithm}' == 'kd_tree' or '{algorithm}' == 'ball_tree':
-            {model} = DBSCAN(eps={eps}, min_samples={min_samples}, metric='{metric}', metric_params={metric_params}, 
-                             algorithm='{algorithm}', leaf_size={leaf_size}, p={p}, n_jobs={n_jobs})
-        else:
-            {model} = DBSCAN(eps={eps}, min_samples={min_samples}, metric='{metric}', metric_params={metric_params}, 
-                             algorithm='{algorithm}', p={p}, n_jobs={n_jobs})
-        {output_data}['{prediction}'] = {model}.fit_predict(X_train)
+        dbscan = DBSCAN(eps={eps}, min_samples={min_samples}, metric='{metric}')
+        {output_data}['{prediction}'] = dbscan.fit_predict(X_train)
         """.format(eps=self.eps,
                    min_samples=self.min_samples,
                    output_data=self.output,
-                   model=self.model,
                    input_data=self.input_port,
                    prediction=self.prediction,
                    columns=self.features,
-                   metric=self.metric,
-                   metric_params=self.metric_params,
-                   algorithm=self.algorithm,
-                   leaf_size=self.leaf_size,
-                   p=self.p,
-                   n_jobs=self.n_jobs)
+                   metric=self.metric)
 
         return dedent(code)
 
@@ -293,10 +226,6 @@ class GaussianMixtureClusteringOperation(Operation):
     COVARIANCE_TYPE_PARAM = 'covariance_type'
     REG_COVAR_PARAM = 'reg_covar'
     N_INIT_PARAM = 'n_init'
-    INIT_PARAMS_PARAM = 'init_params'
-    WEIGHTS_INIT_PARAM = 'weights_init'
-    MEANS_INIT_PARAM = 'means_init'
-    PRECISIONS_INIT_PARAM = 'precisions_init'
     RANDOM_STATE_PARAM = 'random_state'
 
     def __init__(self, parameters, named_inputs,
@@ -322,10 +251,6 @@ class GaussianMixtureClusteringOperation(Operation):
             self.reg_covar = float(parameters.get(self.REG_COVAR_PARAM, 0.000001))
             self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 100) or 100)
             self.n_init = int(parameters.get(self.N_INIT_PARAM, 1))
-            self.init_params = parameters.get(self.INIT_PARAMS_PARAM, 'kmeans')
-            self.weights_init = parameters.get(self.WEIGHTS_INIT_PARAM, None)
-            self.means_init = parameters.get(self.MEANS_INIT_PARAM, None)
-            self.precisions_init = parameters.get(self.PRECISIONS_INIT_PARAM, None)
             self.random_state = parameters.get(self.RANDOM_STATE_PARAM, None)
 
             vals = [self.n_components, self.max_iter]
@@ -359,9 +284,7 @@ class GaussianMixtureClusteringOperation(Operation):
         {output_data} = {input_data}.copy()
         X_train = {input_data}[{columns}].to_numpy().tolist()
         {model} = GaussianMixture(n_components={k}, max_iter={iter}, tol={tol}, covariance_type='{covariance_type}', 
-                                  reg_covar={reg_covar}, n_init={n_init}, init_params='{init_params}', 
-                                  weights_init={weights_init}, means_init={means_init}, 
-                                  precisions_init={precisions_init}, random_state={random_state})
+                                  reg_covar={reg_covar}, n_init={n_init}, random_state={random_state})
         {output_data}['{prediction}'] = {model}.fit_predict(X_train)
         """.format(k=self.n_components,
                    iter=self.max_iter,
@@ -374,10 +297,6 @@ class GaussianMixtureClusteringOperation(Operation):
                    covariance_type=self.covariance_type,
                    reg_covar=self.reg_covar,
                    n_init=self.n_init,
-                   init_params=self.init_params,
-                   weights_init=self.weights_init,
-                   means_init=self.means_init,
-                   precisions_init=self.precisions_init,
                    random_state=self.random_state)
 
         return dedent(code)
@@ -393,17 +312,11 @@ class KMeansClusteringOperation(Operation):
     SEED_PARAM = 'seed'
     N_INIT_PARAM = 'n_init'
     N_INIT_MB_PARAM = 'n_init_mb'
-    PRECOMPUTE_DISTANCES_PARAM = 'precompute_distances'
-    VERBOSE_PARAM = 'verbose'
-    COPY_X_PARAM = 'copy_x'
     N_JOBS_PARAM = 'n_jobs'
     ALGORITHM_PARAM = 'algorithm'
     BATCH_SIZE_PARAM = 'batch_size'
-    COMPUTE_LABELS_PARAM = 'compute_labels'
     TOL_PARAM = 'tol'
     MAX_NO_IMPROVEMENT_PARAM = 'max_no_improvement'
-    INIT_SIZE_PARAM = 'init_size'
-    REASSIGNMENT_RATIO_PARAM = 'reassignment_ratio'
     PREDICTION_PARAM = 'prediction'
     FEATURES_PARAM = 'features'
 
@@ -428,17 +341,11 @@ class KMeansClusteringOperation(Operation):
             self.features = parameters['features']
             self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
             self.n_init = int(parameters.get(self.N_INIT_PARAM, 10) or 10)
-            self.precompute_distances = parameters.get(self.PRECOMPUTE_DISTANCES_PARAM, 'auto') or 'auto'
-            self.copy_x = int(parameters.get(self.COPY_X_PARAM, 1) or 1)
             self.n_jobs = parameters.get(self.N_JOBS_PARAM, None) or None
             self.algorithm = parameters.get(self.ALGORITHM_PARAM, 'auto') or 'auto'
-            self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0) or 0)
             self.n_init_mb = int(parameters.get(self.N_INIT_MB_PARAM, 3) or 3)
-            self.reassignment_ratio = float(parameters.get(self.REASSIGNMENT_RATIO_PARAM, 0.01) or 0.01)
             self.tol = float(parameters.get(self.TOL_PARAM, 0.0) or 0.0)
-            self.compute_labels = int(parameters.get(self.COMPUTE_LABELS_PARAM, 1) or 1)
             self.max_no_improvement = int(parameters.get(self.MAX_NO_IMPROVEMENT_PARAM, 10) or 10)
-            self.init_size = parameters.get(self.INIT_SIZE_PARAM, None) or None
             self.batch_size = int(parameters.get(self.BATCH_SIZE_PARAM, 100) or 100)
             self.n_clusters = int(parameters.get(self.N_CLUSTERS_PARAM, 8) or 8)
             self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 100) or 100)
@@ -476,10 +383,6 @@ class KMeansClusteringOperation(Operation):
         return sep.join([self.output, self.model])
 
     def input_treatment(self):
-        self.copy_x = True if int(self.copy_x) == 1 else False
-
-        self.compute_labels = True if int(self.compute_labels) == 1 else False
-
         if self.seed is not None and self.seed != '0':
             self.seed = int(self.seed)
         else:
@@ -490,30 +393,14 @@ class KMeansClusteringOperation(Operation):
         else:
             self.n_jobs = None
 
-        if self.init_size is not None and self.init_size != '0':
-            self.init_size = int(self.init_size)
-        else:
-            self.init_size = None
-
-        if self.precompute_distances == 'true':
-            self.precompute_distances = True
-        elif self.precompute_distances == 'false':
-            self.precompute_distances = False
-
     def generate_code(self):
         """Generate code."""
         if self.type.lower() == "k-means":
             code = """
             {output_data} = {input_data}.copy()
             X_train = {input_data}[{columns}].to_numpy().tolist()
-            if '{precompute_distances}' == 'auto':
-                {model} = KMeans(n_clusters={k}, init='{init}', max_iter={max_iter}, tol={tol}, random_state={seed}, 
-                                  n_init={n_init}, precompute_distances='{precompute_distances}', copy_x={copy_x}, 
-                                  n_jobs={n_jobs}, algorithm='{algorithm}', verbose={verbose})
-            else:
-                {model} = KMeans(n_clusters={k}, init='{init}', max_iter={max_iter}, tol={tol}, random_state={seed}, 
-                                  n_init={n_init}, precompute_distances={precompute_distances}, copy_x={copy_x}, 
-                                  n_jobs={n_jobs}, algorithm='{algorithm}', verbose={verbose})
+            {model} = KMeans(n_clusters={k}, init='{init}', max_iter={max_iter}, tol={tol}, random_state={seed}, 
+                             n_init={n_init}, n_jobs={n_jobs}, algorithm='{algorithm}')
             {output_data}['{prediction}'] = {model}.fit_predict(X_train)
             """.format(k=self.n_clusters,
                        max_iter=self.max_iter,
@@ -526,20 +413,15 @@ class KMeansClusteringOperation(Operation):
                        prediction=self.prediction,
                        columns=self.features,
                        n_init=self.n_init,
-                       precompute_distances=self.precompute_distances,
-                       copy_x=self.copy_x,
                        n_jobs=self.n_jobs,
-                       algorithm=self.algorithm,
-                       verbose=self.verbose)
+                       algorithm=self.algorithm)
         else:
             code = """
             {output_data} = {input_data}.copy()
             X_train = {input_data}[{columns}].to_numpy().tolist()
             {model} = MiniBatchKMeans(n_clusters={k}, init='{init}', max_iter={max_iter}, tol={tol}, 
-                                       random_state={seed}, verbose={verbose}, n_init={n_init}, 
-                                       reassignment_ratio={reassignment_ratio}, compute_labels={compute_labels}, 
-                                       max_no_improvement={max_no_improvement}, init_size={init_size}, 
-                                       batch_size={batch_size})
+                                      random_state={seed}, n_init={n_init}, max_no_improvement={max_no_improvement}, 
+                                      batch_size={batch_size})
             {output_data}['{prediction}'] = {model}.fit_predict(X_train)
             """.format(k=self.n_clusters,
                        max_iter=self.max_iter,
@@ -551,12 +433,8 @@ class KMeansClusteringOperation(Operation):
                        input_data=self.input_port,
                        prediction=self.prediction,
                        columns=self.features,
-                       verbose=self.verbose,
                        n_init=self.n_init_mb,
-                       reassignment_ratio=self.reassignment_ratio,
-                       compute_labels=self.compute_labels,
                        max_no_improvement=self.max_no_improvement,
-                       init_size=self.init_size,
                        batch_size=self.batch_size)
         return dedent(code)
 

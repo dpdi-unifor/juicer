@@ -111,12 +111,14 @@ class DecisionTreeClassifierOperation(Operation):
         if self.has_code:
             self.min_split = int(parameters.get(self.MIN_SPLIT_PARAM, 2) or 2)
             self.min_leaf = int(parameters.get(self.MIN_LEAF_PARAM, 1) or 1)
-            self.max_depth = parameters.get(self.MAX_DEPTH_PARAM, None) or None
-            self.min_weight = float(parameters.get(self.MIN_WEIGHT_PARAM, 0.0) or 0.0)
+            max_depth_ = parameters.get(self.MAX_DEPTH_PARAM, None)
+            self.max_depth = None if max_depth_ is None else int(max_depth_)
+            self.min_weight = float(parameters.get(self.MIN_WEIGHT_PARAM, 0.0)) or 0.0
             self.seed = parameters.get(self.SEED_PARAM, None) or None
             self.criterion = parameters.get(self.CRITERION_PARAM, 'gini') or 'gini'
             self.splitter = parameters.get(self.SPLITTER_PARAM, 'best') or 'best'
-            self.max_features = parameters.get(self.MAX_FEATURES_PARAM, None) or None
+            max_features_ = parameters.get(self.MAX_FEATURES_PARAM, None)
+            self.max_features = None if max_features_ is None else "'"+max_features_+"'"
             self.max_leaf_nodes = parameters.get(self.MAX_LEAF_NODES_PARAM, None) or None
             self.min_impurity_decrease = float(parameters.get(self.MIN_IMPURITY_DECREASE_PARAM, 0) or 0)
             self.class_weight = parameters.get(self.CLASS_WEIGHT_PARAM, None) or None
@@ -148,15 +150,25 @@ class DecisionTreeClassifierOperation(Operation):
     def input_treatment(self):
         self.presort = True if int(self.presort) == 1 else False
 
-        if self.min_weight < 0:
+        if self.min_weight < 0 or self.min_weight > 0.5:
             raise ValueError(
-                _("Parameter '{}' must be x>=0 for task {}").format(
+                _("Parameter '{}' must be x>=0 or x<=0.5 for task {}").format(
                     self.MIN_WEIGHT_PARAM, self.__class__))
 
         if self.max_depth is not None and self.max_depth <= 0:
             raise ValueError(
                 _("Parameter '{}' must be x>0 for task {}").format(
                     self.MAX_DEPTH_PARAM, self.__class__))
+
+        if self.min_split <= 1:
+            raise ValueError(
+                _("Parameter '{}' must be x>1 for task {}").format(
+                    self.MIN_SPLIT_PARAM, self.__class__))
+
+        if self.min_impurity_decrease < 0:
+            raise ValueError(
+                _("Parameter '{}' must be x>=0 for task {}").format(
+                    self.MIN_IMPURITY_DECREASE_PARAM, self.__class__))
 
         if self.max_leaf_nodes is not None and self.max_leaf_nodes != '0':
             self.max_leaf_nodes = int(self.max_leaf_nodes)
@@ -249,30 +261,34 @@ class GBTClassifierOperation(Operation):
             self.min_split = int(parameters.get(self.MIN_SPLIT_PARAM, 2) or 2)
             self.min_leaf = int(parameters.get(self.MIN_LEAF_PARAM, 1) or 1)
             self.n_estimators = int(parameters.get(self.N_ESTIMATORS_PARAM, 100) or 100)
-            self.learning_rate = float(parameters.get(self.LEARNING_RATE_PARAM, 0.1) or 0.1)
+            self.learning_rate = float(parameters.get(self.LEARNING_RATE_PARAM, 0.1)) or 0.1
             self.loss = \
                 parameters.get(self.LOSS_PARAM, self.LOSS_PARAM_DEV) or \
                 self.LOSS_PARAM_DEV
             self.seed = parameters.get(self.SEED_PARAM, None) or None
-            self.subsample = float(parameters.get(self.LEARNING_RATE_PARAM, 1.0) or 1.0)
+            self.subsample = float(parameters.get(self.SUBSAMPLE_PARAM, 1.0)) or 1.0
             self.criterion = parameters.get(self.CRITERION_PARAM, 'friedman_mse') or 'friedman_mse'
             self.min_weight_fraction_leaf = float(parameters.get(self.MIN_WEIGHT_FRACTION_LEAF_PARAM, 0) or 0)
             self.min_impurity_decrease = float(parameters.get(self.MIN_IMPURITY_DECREASE_PARAM, 0) or 0)
             self.init = parameters.get(self.INIT_PARAM, 'None') or 'None'
-            self.max_features = parameters.get(self.MAX_FEATURES_PARAM, None) or None
-            self.max_leaf_nodes = parameters.get(self.MAX_LEAF_NODES_PARAM, None) or None
+            max_features_ = parameters.get(self.MAX_FEATURES_PARAM, None)
+            self.max_features = None if max_features_ is None else "'"+max_features_+"'"
+            max_leaf_nodes_ = parameters.get(self.MAX_LEAF_NODES_PARAM, None)
+            self.max_leaf_nodes = None if max_leaf_nodes_ is None else int(max_leaf_nodes_)
             self.presort = parameters.get(self.PRESORT_PARAM, 'auto') or 'auto'
             self.validation_fraction = float(parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1) or 0.1)
-            self.n_iter_no_change = parameters.get(self.N_ITER_NO_CHANGE_PARAM, None) or None
+            n_iter_no_change_ = parameters.get(self.N_ITER_NO_CHANGE_PARAM, None)
+            self.n_iter_no_change = None if n_iter_no_change_ is None else int(n_iter_no_change_)
             self.tol = float(parameters.get(self.LEARNING_RATE_PARAM, 1e-4) or 1e-4)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
             self. prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
 
             vals = [self.min_split, self.min_leaf, self.learning_rate,
-                    self.n_estimators]
+                    self.n_estimators, self.max_depth]
             atts = [self.MIN_SPLIT_PARAM, self.MIN_LEAF_PARAM,
-                    self.LEARNING_RATE_PARAM, self.N_ESTIMATORS_PARAM]
+                    self.LEARNING_RATE_PARAM, self.N_ESTIMATORS_PARAM,
+                    self.MAX_DEPTH_PARAM]
             for var, att in zip(vals, atts):
                 if var <= 0:
                     raise ValueError(
@@ -295,22 +311,35 @@ class GBTClassifierOperation(Operation):
         return sep.join([self.output, self.model])
 
     def input_treatment(self):
-        if self.max_leaf_nodes is not None and self.max_leaf_nodes != '0':
-            self.max_leaf_nodes = int(self.max_leaf_nodes)
-        else:
-            self.max_leaf_nodes = None
+        if self.max_leaf_nodes is not None and self.max_leaf_nodes <= 1:
+            raise ValueError(
+                _("Parameter '{}' must be None or x > 1 for task {}").format(
+                    self.MAX_LEAF_NODES_PARAM, self.__class__))
+        
         if self.seed is not None and self.seed != '0':
             self.seed = int(self.seed)
         else:
             self.seed = None
-        if self.n_iter_no_change is not None and self.n_iter_no_change != '0':
-            self.n_iter_no_change = int(self.n_iter_no_change)
-        else:
-            self.n_iter_no_change = None
+
+        if self.n_iter_no_change is not None and self.n_iter_no_change <= 0:
+            raise ValueError(
+                _("Parameter '{}' must be None or x > 0 for task {}").format(
+                    self.N_ITER_NO_CHANGE_PARAM, self.__class__))
+
         if self.validation_fraction < 0 or self.validation_fraction > 1:
             raise ValueError(
                 _("Parameter '{}' must be 0 <= x =< 1 for task {}").format(
                     self.VALIDATION_FRACTION_PARAM, self.__class__))
+
+        if self.subsample > 1.0 or self.subsample <= 0.0:
+            raise ValueError(
+                _("Parameter '{}' must be 0 < x =< 1 for task {}").format(
+                    self.SUBSAMPLE_PARAM, self.__class__))
+
+        if self.min_weight_fraction_leaf > 0.5 or self.min_weight_fraction_leaf < 0.0:
+            raise ValueError(
+                _("Parameter '{}' must be 0.0 <= x =< 0.5 for task {}").format(
+                    self.MIN_WEIGHT_FRACTION_LEAF_PARAM, self.__class__))
 
     def generate_code(self):
         """Generate code."""
@@ -387,11 +416,6 @@ class KNNClassifierOperation(Operation):
             'train input data', 'input_data_{}'.format(self.order))
 
         if self.has_code:
-            if parameters.get(self.K_PARAM, None) is None:
-                raise ValueError(
-                    _("Parameter '{}' must be informed for task {}")
-                    .format(self.K_PARAM, self.__class__))
-
             self.n_neighbors = int(self.parameters.get(self.K_PARAM, 5)) or 5
             self.weights = self.parameters.get(self.WEIGHTS_PARAM, 'uniform') or 'uniform'
             self.algorithm = self.parameters.get(self.ALGORITHM_PARAM, 'auto') or 'auto'
@@ -429,6 +453,11 @@ class KNNClassifierOperation(Operation):
             self.n_jobs = int(self.n_jobs)
         else:
             self.n_jobs = None
+
+        if self.p <=1 and self.metric in ['minkowski', 'wminkowski']:
+            raise ValueError(
+                        _("Parameter '{}' must be x>1 when parameter '{}' is 'minkowski' for task {}").format(
+                                self.P_PARAM, self.METRIC_PARAMS_PARAM, self.__class__))
 
     def generate_code(self):
         """Generate code."""
@@ -501,14 +530,14 @@ class LogisticRegressionOperation(Operation):
                 msg = _("Parameters '{}' must be informed for task {}")
                 raise ValueError(msg.format(
                     self.LABEL_PARAM,
-                    self.__class__.__name__))
+                    self.__class__))
             else: self.label = parameters.get(self.LABEL_PARAM, None)
 
             if self.FEATURES_PARAM not in parameters:
                 msg = _("Parameters '{}' must be informed for task {}")
                 raise ValueError(msg.format(
                     self.FEATURES_PARAM,
-                    self.__class__.__name__))
+                    self.__class__))
             else: self.features = parameters.get(self.FEATURES_PARAM, None)
 
             self.prediction_column = parameters.get(self.PREDICTION_PARAM,
@@ -516,7 +545,11 @@ class LogisticRegressionOperation(Operation):
 
             self.tol = float(self.parameters.get(self.TOLERANCE_PARAM,
                                            0.0001) or 0.0001)
-            self.tol = abs(float(self.tol))
+            if self.tol <= 0:
+                raise ValueError(
+                    _('Parameter "{}" must be x>0 for task {}').format(
+                        self.TOLERANCE_PARAM, self.__class__))
+
             self.regularization = float(self.parameters.get(self.REGULARIZATION_PARAM,
                                                       1.0)) or 1.0
             self.max_iter = int(self.parameters.get(self.MAX_ITER_PARAM,
@@ -535,6 +568,12 @@ class LogisticRegressionOperation(Operation):
             self.dual = int(parameters.get(self.DUAL_PARAM, 0)) == 1
             self.fit_intercept = int(parameters.get(self.FIT_INTERCEPT_PARAM, 1)) == 1
             self.intercept_scaling = float(parameters.get(self.INTERCEPT_SCALING_PARAM, 1.0))
+            if self.fit_intercept and self.intercept_scaling <= 0 and self.solver == 'liblinear':
+                raise ValueError(
+                        _("Parameter '{}' must be x>0 for task {}").format(
+                            self.INTERCEPT_SCALING_PARAM, self.__class__))
+
+
             self.verbose = int(parameters.get(self.VERBOSE_PARAM, 0))
             if(self.verbose < 0):
                 raise ValueError(
@@ -551,17 +590,6 @@ class LogisticRegressionOperation(Operation):
                                     self.N_JOBS_PARAM, self.__class__))
             else:
                  self.n_jobs = 'None'
-
-            l1_ratio_param_ = parameters.get(self.L1_RATIO_PARAM, None)
-            if(l1_ratio_param_ is not None):
-                self.l1_ratio = float(l1_ratio_param_)
-                if(self.l1_ratio < 0 or self.l1_ratio > 1):
-                    raise ValueError(
-                            _("Parameter 'l1_ratio' must be 0 <= x <= 1 for task {}").format(
-                                    self.__class__))
-            else:
-                self.l1_ratio = 'None'
-
 
             self.multi_class = parameters.get(self.MULTI_CLASS_PARAM, 'ovr') or 'ovr'
 
@@ -584,6 +612,30 @@ class LogisticRegressionOperation(Operation):
                 raise ValueError(
                     _("For '{}' solver, the penalty type must be in {} for task {}").format(
                         self.solver, str(solver_dict[self.solver]), self.__class__))
+
+            if self.solver == 'newton-cg' and self.dual==True:
+                raise ValueError(
+                    _("For '{}' solver supports only dual={} for task {}").format(
+                        self.solver, self.dual, self.__class__))
+
+            if self.solver == 'liblinear' and self.multi_class == 'multinomial':
+                raise ValueError(
+                    _('Parameter "{}" does not support {}="multinomial"').format(
+                        self.SOLVER_PARAM, self.MULTI_CLASS_PARAM, self.__class__))
+
+            l1_ratio_param_ = parameters.get(self.L1_RATIO_PARAM, None)
+            if(l1_ratio_param_ is not None):
+                self.l1_ratio = float(l1_ratio_param_)
+                if self.penalty=='elasticnet' and (self.l1_ratio < 0 or self.l1_ratio > 1):
+                    raise ValueError(
+                            _("Parameter 'l1_ratio' must be 0 <= x <= 1 for task {}").format(
+                                    self.__class__))
+            elif self.penalty=='elasticnet' and l1_ratio_param_ is None:
+                raise ValueError(
+                    _("Parameter 'l1_ratio' must be 0 <= x <= 1 for task {}").format(
+                        self.__class__))
+            else:
+                self.l1_ratio = 'None'
 
             self.has_import = \
                 "from sklearn.linear_model import LogisticRegression\n"
@@ -680,12 +732,9 @@ class MLPClassifierOperation(Operation):
             self.solver = parameters.get(
                     self.SOLVER_PARAM,
                     self.SOLVER_PARAM_ADAM) or self.SOLVER_PARAM_ADAM
-            self.alpha = parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001
-            self.alpha = abs(float(self.alpha))
-            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 200) or 200
-            self.max_iter = abs(int(self.max_iter))
-            self.tol = parameters.get(self.TOLERANCE_PARAM, 0.0001) or 0.0001
-            self.tol = abs(float(self.tol))
+            self.alpha = float(parameters.get(self.ALPHA_PARAM, 0.0001)) or 0.0001
+            self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 200)) or 200
+            self.tol = float(parameters.get(self.TOLERANCE_PARAM, 0.0001)) or 0.0001
             self.seed = parameters.get(self.SEED_PARAM, None) or None
 
             self.batch_size = parameters.get(self.BATCH_SIZE_PARAM, 'auto') or 'auto'
@@ -725,32 +774,29 @@ class MLPClassifierOperation(Operation):
         self.shuffle = True if int(self.shuffle) == 1 else False
         self.nesterovs_momentum = True if int(self.nesterovs_momentum) == 1 else False
         self.early_stopping = True if int(self.early_stopping) == 1 else False
+        
+        if self.tol <= 0:
+            raise ValueError(
+                _("Parameter '{}' must be x > 0 for task {}").format(
+                    self.TOLERANCE_PARAM, self.__class__))
+
+        if self.max_iter <= 0:
+            raise ValueError(
+                _("Parameter '{}' must be x > 0 for task {}").format(
+                    self.MAX_ITER_PARAM, self.__class__))
+
+        if self.alpha < 0:
+            raise ValueError(
+                _("Parameter '{}' must be x >= 0 for task {}").format(
+                    self.ALPHA_PARAM, self.__class__))
 
         if self.seed is not None:
             self.seed = int(self.seed)
 
         if self.batch_size != 'auto':
             self.batch_size = int(self.batch_size)
-
-        if self.momentum < 0 or self.momentum > 1:
-            raise ValueError(
-                _("Parameter '{}' must be x between 0 and 1 for task {}").format(
-                    self.MOMENTUM_PARAM, self.__class__))
-
-        if self.validation_fraction < 0 or self.validation_fraction > 1:
-            raise ValueError(
-                _("Parameter '{}' must be x between 0 and 1 for task {}").format(
-                    self.VALIDATION_FRACTION_PARAM, self.__class__))
-
-        if self.beta1 < 0 or self.beta1 >= 1:
-            raise ValueError(
-                _("Parameter '{}' must be in [0, 1) for task {}").format(
-                    self.BETA_1_PARAM, self.__class__))
-
-        if self.beta2 < 0 or self.beta2 >= 1:
-            raise ValueError(
-                _("Parameter '{}' must be in [0, 1) for task {}").format(
-                    self.BETA_2_PARAM, self.__class__))
+        else:
+            self.batch_size = "'"+self.batch_size+"'"
 
         if not bool(re.match('(\d+,)+\d*', self.hidden_layers)):
             raise ValueError(
@@ -764,8 +810,8 @@ class MLPClassifierOperation(Operation):
         self.activation = """activation='{activation}'""".format(activation=self.activation)
         functions_required.append(self.activation)
 
-        self.solver = """solver='{solver}'""".format(solver=self.solver)
-        functions_required.append(self.solver)
+        self.solver_ = """solver='{solver}'""".format(solver=self.solver)
+        functions_required.append(self.solver_)
 
         self.alpha = """alpha={alpha}""".format(alpha=self.alpha)
         functions_required.append(self.alpha)
@@ -780,27 +826,37 @@ class MLPClassifierOperation(Operation):
         functions_required.append(self.seed)
 
         if self.solver != 'lbfgs':
-            self.batch_size = """batch_size='{batch_size}'""".format(batch_size=self.batch_size)
+            self.batch_size = """batch_size={batch_size}""".format(batch_size=self.batch_size)
             functions_required.append(self.batch_size)
 
         if self.solver == 'sgd':
             self.learning_rate = """learning_rate='{learning_rate}'""".format(learning_rate=self.learning_rate)
             functions_required.append(self.learning_rate)
 
-            self.momentum = """momentum={momentum}""".format(momentum=self.momentum)
-            functions_required.append(self.momentum)
+            self.nesterovs_momentum = """nesterovs_momentum={nesterovs_momentum}""".format(
+                nesterovs_momentum=self.nesterovs_momentum)
+            functions_required.append(self.nesterovs_momentum)
 
             self.power_t = """power_t={power_t}""".format(power_t=self.power_t)
             functions_required.append(self.power_t)
 
-            if self.momentum > 0:
-                self.nesterovs_momentum = """nesterovs_momentum={nesterovs_momentum}""".format(
-                    nesterovs_momentum=self.nesterovs_momentum)
-                functions_required.append(self.nesterovs_momentum)
+            if self.momentum < 0 or self.momentum > 1:
+                raise ValueError(
+                    _("Parameter '{}' must be x between 0 and 1 for task {}").format(
+                        self.MOMENTUM_PARAM, self.__class__))
+            else:
+                self.momentum = """momentum={momentum}""".format(momentum=self.momentum)
+                functions_required.append(self.momentum)
+
         if self.solver == 'sgd' or self.solver == 'adam':
-            self.learning_rate_init = """learning_rate_init={learning_rate_init}""".format(
-                learning_rate_init=self.learning_rate_init)
-            functions_required.append(self.learning_rate_init)
+            if self.learning_rate_init <= 0:
+                raise ValueError(
+                    _("Parameter '{}' must be x > 0 for task {}").format(
+                        self.LEARNING_RATE_INIT_PRAM, self.__class__))
+            else:
+                self.learning_rate_init = """learning_rate_init={learning_rate_init}""".format(
+                    learning_rate_init=self.learning_rate_init)
+                functions_required.append(self.learning_rate_init)
 
             self.shuffle = """shuffle={shuffle}""".format(shuffle=self.shuffle)
             functions_required.append(self.shuffle)
@@ -808,25 +864,53 @@ class MLPClassifierOperation(Operation):
             self.early_stopping = """early_stopping={early_stopping}""".format(early_stopping=self.early_stopping)
             functions_required.append(self.early_stopping)
 
-            self.n_iter_no_change = """n_iter_no_change={n_iter_no_change}""".format(
+            if self.n_iter_no_change <= 0:
+                raise ValueError(
+                    _("Parameter '{}' must be x > 0 for task {}").format(
+                        self.N_ITER_NO_CHANGE_PARAM, self.__class__))
+            else:
+                self.n_iter_no_change = """n_iter_no_change={n_iter_no_change}""".format(
                 n_iter_no_change=self.n_iter_no_change)
-            functions_required.append(self.n_iter_no_change)
-        if self.early_stopping == 1:
-            self.validation_fraction = """validation_fraction={validation_fraction}""".format(
-                validation_fraction=self.validation_fraction)
-            functions_required.append(self.validation_fraction)
-        if self.solver == 'adam':
-            self.beta1 = """beta1={beta1}""".format(beta1=self.beta1)
-            functions_required.append(self.beta1)
+                functions_required.append(self.n_iter_no_change)
 
-            self.beta2 = """beta2={beta2}""".format(beta2=self.beta2)
-            functions_required.append(self.beta2)
+        if self.early_stopping == 1:
+            if self.validation_fraction < 0 or self.validation_fraction > 1:
+                raise ValueError(
+                    _("Parameter '{}' must be x between 0 and 1 for task {}").format(
+                        self.VALIDATION_FRACTION_PARAM, self.__class__))
+            else:
+                self.validation_fraction = """validation_fraction={validation_fraction}""".format(
+                    validation_fraction=self.validation_fraction)
+                functions_required.append(self.validation_fraction)
+
+        if self.solver == 'adam':
+            if self.beta1 < 0 or self.beta1 >= 1:
+                raise ValueError(
+                    _("Parameter '{}' must be in [0, 1) for task {}").format(
+                        self.BETA_1_PARAM, self.__class__))
+            else:
+                self.beta1 = """beta_1={beta1}""".format(beta1=self.beta1)
+                functions_required.append(self.beta1)
+
+            if self.beta2 < 0 or self.beta2 >= 1:
+                raise ValueError(
+                    _("Parameter '{}' must be in [0, 1) for task {}").format(
+                        self.BETA_2_PARAM, self.__class__))
+            else:
+                self.beta2 = """beta_2={beta2}""".format(beta2=self.beta2)
+                functions_required.append(self.beta2)
 
             self.epsilon = """epsilon={epsilon}""".format(epsilon=self.epsilon)
             functions_required.append(self.epsilon)
+
         if self.solver == 'lbfgs':
-            self.max_fun = """max_fun={max_fun}""".format(max_fun=self.max_fun)
-            functions_required.append(self.max_fun)
+            if self.max_fun <= 0:
+                raise ValueError(
+                    _("Parameter '{}' must be x > 0 for task {}").format(
+                        self.MAX_FUN_PARAM, self.__class__))
+            else:
+                self.max_fun = """max_fun={max_fun}""".format(max_fun=self.max_fun)
+                functions_required.append(self.max_fun)
 
         self.add_functions_required = ',\n    '.join(functions_required)
 
@@ -931,10 +1015,11 @@ class NaiveBayesClassifierOperation(Operation):
         if self.priors != "None":
             self.priors = '[' + self.priors + ']'
 
-        if self.smoothing <= 0:
+        if self.smoothing <= 0 and \
+           self.model_type in [self.MODEL_TYPE_PARAM_M, self.MODEL_TYPE_PARAM_B]:
             raise ValueError(
                 _("Parameter '{}' must be x>0 for task {}").format(
-                    'smoothing', self.__class__))
+                    self.ALPHA_PARAM, self.__class__))
 
     def generate_code(self):
         """Generate code."""
@@ -1036,8 +1121,7 @@ class PerceptronClassifierOperation(Operation):
         if self.has_code:
             self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 1000) or 1000)
             self.alpha = float(parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001)
-            self.tol = parameters.get(self.TOLERANCE_PARAM, 0.001) or 0.001
-            self.tol = abs(float(self.tol))
+            self.tol = float(parameters.get(self.TOLERANCE_PARAM, 0.001)) or 0.001
             self.shuffle = int(parameters.get(self.SHUFFLE_PARAM, 0) or 0)
             self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
             self.penalty = parameters.get(
@@ -1160,7 +1244,7 @@ class RandomForestClassifierOperation(Operation):
     def __init__(self, parameters,  named_inputs, named_outputs):
         Operation.__init__(self, parameters,  named_inputs,  named_outputs)
 
-        self.has_code = True
+        self.has_code = any([len(self.named_inputs) == 1, self.contains_results()])
         if self.has_code:
             self.output = self.named_outputs.get(
             'output data', 'output_data_{}'.format(self.order))
@@ -1231,6 +1315,12 @@ class RandomForestClassifierOperation(Operation):
             else:
                 self.max_samples = 'None'
 
+            
+            if self.max_features != 'None' and \
+            (self.max_features <= 0 or self.max_features > len(self.features)):
+                raise ValueError(
+                        _("Parameter '{}' must be x>0 and x < n_features for task {}").format(
+                        self.MAX_FEATURES_PARAM, self.__class__))
 
             vals = [self.verbose, self.min_impurity_decrease, self.ccp_alpha]
             atts = [self.VERBOSE_PARAM, self.MIN_IMPURITY_DECREASE_PARAM, self.CCP_ALPHA_PARAM]
@@ -1367,7 +1457,15 @@ class SvmClassifierOperation(Operation):
             self.c = float(parameters.get(self.PENALTY_PARAM, 1.0) or 1.0)
 
             gamma_ = parameters.get(self.GAMMA_PARAM, None)
-            self.gamma = "'"+gamma_+"'" if gamma_ == 'auto' else (float(gamma_) if gamma_ is not None else "'auto'")
+            if gamma_ is None:
+                self.gamma = 'scale'
+            else:
+                self.gamma = float(gamma_)
+                if self.gamma < 0 and self.kernel != 'linear':
+                    raise ValueError(
+                        _("Parameter '{}' must be x>=0 for task {}").format(
+                            self.GAMMA_PARAM, self.__class__))
+
             self.coef0 = float(parameters.get(self.COEF0_PARAM, 0.0) or 0.0)
             self.shrinking = int(parameters.get(self.SHRINKING_PARAM, 1)) == 1
             self.probability = int(parameters.get(self.PROBABILITY_PARAM, 0)) == 1

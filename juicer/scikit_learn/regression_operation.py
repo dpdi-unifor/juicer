@@ -90,11 +90,10 @@ class RegressionModelOperation(Operation):
             code = """
             algorithm = {algorithm}
             {output_data} = {input}.copy()
-            X_train = {input}['{features}'].to_numpy().tolist()
+            X_train = get_X_train_data({input}, {features})
+            y = get_label_data({input}, {label})
             if 'IsotonicRegression' in str(algorithm):
                 X_train = np.ravel(X_train)
-            y = {input}['{label}'].to_numpy().tolist()
-            y = np.reshape(y, len(y))
             {model} = algorithm.fit(X_train, y)
             {output_data}['{prediction}'] = algorithm.predict(X_train).tolist()
             """.format(model=self.model, algorithm=self.algorithm,
@@ -124,7 +123,7 @@ class GradientBoostingRegressorOperation(RegressionOperation):
     LOSS_PARAM = 'loss'
     SUBSAMPLE_PARAM = 'subsample'
     ALPHA_PARAM = 'alpha'
-    PRESORT_PARAM = 'presort'
+    CC_APLHA_PARAM = 'cc_alpha'
     VALIDATION_FRACTION_PARAM = 'validation_fraction'
     N_ITER_NO_CHANGE_PARAM = 'n_iter_no_change'
     TOL_PARAM = 'tol'
@@ -163,16 +162,18 @@ class GradientBoostingRegressorOperation(RegressionOperation):
             self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
             self.subsample = float(parameters.get(self.SUBSAMPLE_PARAM, 1.0) or 1.0)
             self.alpha = float(parameters.get(self.ALPHA_PARAM, 0.9) or 0.9)
-            self.presort = int(parameters.get(self.PRESORT_PARAM, 0) or 0)
+            self.cc_alpha = float(parameters.get(self.CC_APLHA_PARAM, 0) or 0)
             self.validation_fraction = float(parameters.get(self.VALIDATION_FRACTION_PARAM, 0.1) or 0.1)
             self.n_iter_no_change = parameters.get(self.N_ITER_NO_CHANGE_PARAM, None) or None
             self.tol = float(parameters.get(self.TOL_PARAM, 1e-4) or 1e-4)
             self.loss = parameters.get(self.LOSS_PARAM, 'ls') or 'ls'
 
             vals = [self.learning_rate, self.n_estimators,
-                    self.min_samples_split, self.min_samples_leaf]
+                    self.min_samples_split, self.min_samples_leaf,
+                    self.max_depth]
             atts = [self.LEARNING_RATE_PARAM, self.N_ESTIMATORS_PARAM,
-                    self.MIN_SPLIT_PARAM, self.MIN_LEAF_PARAM]
+                    self.MIN_SPLIT_PARAM, self.MIN_LEAF_PARAM,
+                    self.MAX_DEPTH_PARAM]
             for var, att in zip(vals, atts):
                 if var <= 0:
                     raise ValueError(
@@ -194,34 +195,66 @@ class GradientBoostingRegressorOperation(RegressionOperation):
         return sep.join([self.output, self.model])
 
     def input_treatment(self):
-        if self.max_features is not None and self.max_features != '0':
-            self.max_features = int(self.max_features)
+        if self.max_features is not None:
+            self.max_features = "'"+self.max_features+"'"
         else:
-            self.max_features = None
+            self.max_features = 'None'
         if self.max_leaf_nodes is not None and self.max_leaf_nodes != '0':
             self.max_leaf_nodes = int(self.max_leaf_nodes)
         else:
             self.max_leaf_nodes = None
-        if self.random_state is not None and self.random_state != '0':
+
+        if self.random_state is not None:
             self.random_state = int(self.random_state)
+            if self.random_state < 0:
+                raise ValueError(
+                    _("Parameter '{}' must be x => 0  or None for task {}").format(
+                        self.RANDOM_STATE_PARAM, self.__class__))
         else:
             self.random_state = None
-        if self.n_iter_no_change is not None and self.n_iter_no_change != '0':
+
+        if self.n_iter_no_change is not None:
             self.n_iter_no_change = int(self.n_iter_no_change)
+            if self.n_iter_no_change < 0:
+                raise ValueError(
+                    _("Parameter '{}' must be x => 0  or None for task {}").format(
+                        self.N_ITER_NO_CHANGE_PARAM, self.__class__))
         else:
             self.n_iter_no_change = None
-        self.presort = True if int(self.presort) == 1 else False
+
+        if self.cc_alpha < 0:
+            raise ValueError(
+                _("Parameter '{}' must be x => 0 for task {}").format(
+                    self.CC_APLHA_PARAM, self.__class__))
+
         if self.validation_fraction < 0 or self.validation_fraction > 1:
             raise ValueError(
                 _("Parameter '{}' must be 0 <= x =< 1 for task {}").format(
                     self.VALIDATION_FRACTION_PARAM, self.__class__))
 
+        if self.subsample > 1 \
+            or self.subsample <= 0:
+            raise ValueError(
+                _("Parameter '{}' must be 0 < x =< 1 for task {}").format(
+                    self.SUBSAMPLE_PARAM, self.__class__))
+
+        if self.min_weight_fraction_leaf > 0.5 \
+            or self.min_weight_fraction_leaf < 0:
+            raise ValueError(
+                _("Parameter '{}' must be 0 <= x =< 0.5 for task {}").format(
+                    self.MIN_WEIGHT_FRACTION_LEAF_PARAM, self.__class__))
+
+        if self.min_impurity_decrease < 0:
+            raise ValueError(
+                _("Parameter '{}' must be x >= 0 for task {}").format(
+                    self.MIN_IMPURITY_DECREASE_PARAM, self.__class__))
+
     def generate_code(self):
         code = dedent("""
             {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{features}].to_numpy().tolist()
-            y = {input_data}[{label}].to_numpy().tolist()
-            y = np.reshape(y, len(y))
+            X_train = get_X_train_data({input_data}, {features})
+            y = get_label_data({input_data}, {label})
+
             {model} = GradientBoostingRegressor(loss='{loss}', learning_rate={learning_rate}, 
                                                     n_estimators={n_estimators}, subsample={subsample}, 
                                                     criterion='{criterion}', min_samples_split={min_samples_split}, 
@@ -231,7 +264,7 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                                                     min_impurity_decrease={min_impurity_decrease}, 
                                                     random_state={random_state}, max_features={max_features}, 
                                                     alpha={alpha}, verbose={verbose}, max_leaf_nodes={max_leaf_nodes}, 
-                                                    warm_start=False, presort={presort}, 
+                                                    warm_start=False, ccp_alpha={cc_alpha}, 
                                                     validation_fraction={validation_fraction}, 
                                                     n_iter_no_change={n_iter_no_change}, tol={tol})
             {model}.fit(X_train, y)          
@@ -254,7 +287,7 @@ class GradientBoostingRegressorOperation(RegressionOperation):
                        alpha=self.alpha,
                        verbose=self.verbose,
                        max_leaf_nodes=self.max_leaf_nodes,
-                       presort=self.presort,
+                       cc_alpha=self.cc_alpha,
                        validation_fraction=self.validation_fraction,
                        n_iter_no_change=self.n_iter_no_change,
                        tol=self.tol,
@@ -338,10 +371,10 @@ class HuberRegressorOperation(RegressionOperation):
 
     def generate_code(self):
         code = dedent("""
-            {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{features}].to_numpy().tolist()
-            y = {input_data}[{label}].to_numpy().tolist()
-            y = np.reshape(y, len(y))
+            {output_data} = {input_data}.copy()
+            X_train = get_X_train_data({input_data}, {features})
+            y = get_label_data({input_data}, {label})
+
             {model} = HuberRegressor(epsilon={epsilon}, max_iter={max_iter}, alpha={alpha}, tol={tol}, 
                                      fit_intercept={fit_intercept}, warm_start=False)
             {model}.fit(X_train, y)
@@ -395,7 +428,7 @@ class IsotonicRegressionOperation(RegressionOperation):
             self.label = parameters.get(self.LABEL_PARAM, None)
             self.prediction = parameters.get(self.PREDICTION_PARAM, 'prediction')
             self.y_min = parameters.get(self.Y_MIN_PARAM, None)
-            self.y_max = parameters.get(self.Y_MIN_PARAM, None)
+            self.y_max = parameters.get(self.Y_MAX_PARAM, None)
             self.out_of_bounds = parameters.get(self.OUT_OF_BOUNDS_PARAM, "nan")
 
             self.treatment()
@@ -430,14 +463,27 @@ class IsotonicRegressionOperation(RegressionOperation):
         else:
             self.y_max = None
 
+        if self.y_max is not None and self.y_min is not None \
+            and self.y_min > self.y_max:
+            raise ValueError(
+                _("Parameter '{}' must be less than or equal to '{}' for task {}").format(
+                    self.Y_MIN_PARAM, self.Y_MAX_PARAM, self.__class__))
+
     def generate_code(self):
+        # X_train = np.array({input_data}[{columns}].to_numpy().tolist()).flatten()
+        # y = np.array({input_data}[{label}].to_numpy().tolist()).flatten()
+
+        #observar se e' possivel trocar a entrada por uma lista de elementos unicos
         code = dedent("""
-        {output_data} = {input_data}.copy()        
-        X_train = np.array({input_data}[{columns}].to_numpy().tolist()).flatten()
-        y = np.array({input_data}[{label}].to_numpy().tolist()).flatten()
         {model} = IsotonicRegression(y_min={min}, y_max={max}, increasing={isotonic}, 
                                      out_of_bounds='{bounds}')
-        {model}.fit(X_train, y)          
+
+        {output_data} = {input_data}.copy()
+        X_train = get_X_train_data({input_data}, {columns})
+        y = get_label_data({input_data}, {label})
+
+        {model}.fit(X_train, y)      
+
         {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
         """).format(output_data=self.output,
                     isotonic=self.isotonic,
@@ -464,6 +510,8 @@ class LinearRegressionOperation(RegressionOperation):
     FEATURES_PARAM = 'features'
     LABEL_PARAM = 'label'
     PREDICTION_PARAM = 'prediction'
+    POSITIVE_PARAM = 'positive'
+    FIT_INTERCEPT_PARAM = 'fit_intercept'
 
     def __init__(self, parameters, named_inputs, named_outputs):
         RegressionOperation.__init__(self, parameters, named_inputs,
@@ -487,11 +535,13 @@ class LinearRegressionOperation(RegressionOperation):
             self.normalize = self.parameters.get(self.NORMALIZE_PARAM, True) in (1, '1', 'true', True)
             self.max_iter = int(parameters.get(self.MAX_ITER_PARAM, 1000) or 1000)
             self.tol = float(self.parameters.get( self.TOLERANCE_PARAM, 0.0001) or 0.0001)
-            self.tol = abs(self.tol)
-            self.seed = self.parameters.get(self.SEED_PARAM, 'None') or 'None'
+            seed_ = self.parameters.get(self.SEED_PARAM, None)
             self.features = parameters['features']
             self.label = parameters.get(self.LABEL_PARAM, None)
             self.prediction = self.parameters.get(self.PREDICTION_PARAM, 'prediction')
+
+            self.fit_intercept = self.parameters.get(self.FIT_INTERCEPT_PARAM, False) == 1
+            self.positive = self.parameters.get(self.POSITIVE_PARAM, False) == 1
 
             vals = [self.alpha, self.max_iter]
             atts = [self.ALPHA_PARAM, self.MAX_ITER_PARAM]
@@ -505,6 +555,15 @@ class LinearRegressionOperation(RegressionOperation):
                 raise ValueError(
                         _("Parameter '{}' must be 0<=x<=1 for task {}").format(
                                 self.ELASTIC_NET_PARAM, self.__class__))
+
+            if seed_ is None and self.seed < 0:
+                self.seed = 'None'
+            else:
+                self.seed = int(seed_)
+                if self.seed < 0:
+                    raise ValueError(
+                        _("Parameter '{}' must be x>=0 for task {}").format(
+                                self.SEED_PARAM, self.__class__))                
 
             self.has_import = \
                 """
@@ -522,11 +581,11 @@ class LinearRegressionOperation(RegressionOperation):
     def generate_code(self):
         code = dedent("""
         {output_data} = {input_data}.copy()
-        X_train = {input_data}[{columns}].to_numpy().tolist()
-        y = {input_data}[{label}].to_numpy().tolist()
-        y = np.reshape(y, len(y))
+        X_train = get_X_train_data({input_data}, {columns})
+        y = get_label_data({input_data}, {label})
+
         {model} = ElasticNet(alpha={alpha}, l1_ratio={elastic}, tol={tol}, max_iter={max_iter}, random_state={seed},
-                             normalize={normalize})  
+                             normalize={normalize}, positive={positive}, fit_intercept={fit_intercept})  
         {model}.fit(X_train, y)
         {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
         """.format(output_data=self.output,
@@ -541,7 +600,9 @@ class LinearRegressionOperation(RegressionOperation):
                    columns=self.features,
                    label=self.label,
                    model=self.model,
-                   output=self.output))
+                   output=self.output,
+                   fit_intercept=self.fit_intercept,
+                   positive=self.positive))
 
         return code
 
@@ -614,14 +675,11 @@ class MLPRegressorOperation(Operation):
                     self.SOLVER_PARAM,
                     self.SOLVER_PARAM_ADAM) or self.SOLVER_PARAM_ADAM
 
-            self.alpha = parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001
-            self.alpha = abs(float(self.alpha))
+            self.alpha = float(parameters.get(self.ALPHA_PARAM, 0.0001) or 0.0001)
 
-            self.max_iter = parameters.get(self.MAX_ITER_PARAM, 200) or 200
-            self.max_iter = abs(int(self.max_iter))
+            self.max_iter = float(parameters.get(self.MAX_ITER_PARAM, 200) or 200)
 
-            self.tol = parameters.get(self.TOLERANCE_PARAM, 0.0001) or 0.0001
-            self.tol = abs(float(self.tol))
+            self.tol = float(parameters.get(self.TOLERANCE_PARAM, 0.0001) or 0.0001)
 
             self.seed = parameters.get(self.SEED_PARAM, 'None') or 'None'
 
@@ -641,6 +699,14 @@ class MLPRegressorOperation(Operation):
             self.beta_1 = float(parameters.get(self.BETA_1_PARAM, 0.9))
             self.beta_2 = float(parameters.get(self.BETA_2_PARAM, 0.999))
             self.epsilon = float(parameters.get(self.EPSILON_PARAM, 0.00000001))
+
+            vals = [self.alpha, self.max_iter, self.tol]
+            atts = [self.ALPHA_PARAM, self.MAX_ITER_PARAM, self.TOLERANCE_PARAM]
+            for var, att in zip(vals, atts):
+                if var < 0:
+                    raise ValueError(
+                            _("Parameter '{}' must be x>=0 for task {}").format(
+                                    att, self.__class__))
 
             self.has_import = \
                 """
@@ -751,10 +817,10 @@ class MLPRegressorOperation(Operation):
     def generate_code(self):
         """Generate code."""
         code = """
-            {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{columns}].to_numpy().tolist()
-            y = {input_data}[{label}].to_numpy().tolist()
-            y = np.reshape(y, len(y))
+            {output_data} = {input_data}.copy()
+            X_train = get_X_train_data({input_data}, {columns})
+            y = get_label_data({input_data}, {label})
+
             {model} = MLPRegressor({add_functions_required})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -816,7 +882,7 @@ class RandomForestRegressorOperation(RegressionOperation):
             self.min_samples_split = int(parameters.get(self.MIN_SPLIT_PARAM, 2) or 2)
             self.min_samples_leaf = int(parameters.get(self.MIN_LEAF_PARAM, 1) or 1)
             self.criterion = parameters.get(self.CRITERION_PARAM, 'mse') or 'mse'
-            self.min_weight_fraction_leaf = int(parameters.get(self.MIN_WEIGHT_FRACTION_LEAF_PARAM, 0) or 0)
+            self.min_weight_fraction_leaf = float(parameters.get(self.MIN_WEIGHT_FRACTION_LEAF_PARAM, 0) or 0)
             self.max_leaf_nodes = parameters.get(self.MAX_LEAF_NODES_PARAM, None)
             self.min_impurity_decrease = float(parameters.get(self.MIN_IMPURITY_DECREASE_PARAM, 0) or 0)
             self.bootstrap = int(parameters.get(self.BOOTSTRAP_PARAM, 1) or 1)
@@ -830,8 +896,8 @@ class RandomForestRegressorOperation(RegressionOperation):
 
             vals = [self.n_estimators, self.min_samples_split,
                     self.min_samples_leaf]
-            atts = [self.N_ESTIMATORS_PARAM,
-                    self.MIN_SPLIT_PARAM, self.MIN_LEAF_PARAM]
+            atts = [self.N_ESTIMATORS_PARAM, self.MIN_SPLIT_PARAM,
+                    self.MIN_LEAF_PARAM]
             for var, att in zip(vals, atts):
                 if var <= 0:
                     raise ValueError(
@@ -867,25 +933,51 @@ class RandomForestRegressorOperation(RegressionOperation):
 
         self.oob_score = True if int(self.oob_score) == 1 else False
 
-        if self.max_depth is not None and self.max_depth != '0':
+        if self.max_depth is not None:
             self.max_depth = int(self.max_depth)
+            if self.max_depth <= 0:
+                raise ValueError(
+                    _("Parameter '{}' must be x>0 or None for task {}").format(
+                        self.MAX_DEPTH_PARAM, self.__class__))
         else:
             self.max_depth = None
+
         if self.max_leaf_nodes is not None and self.max_leaf_nodes != '0':
             self.max_leaf_nodes = int(self.max_leaf_nodes)
         else:
             self.max_leaf_nodes = None
-        if self.random_state is not None and self.random_state != '0':
+
+        if self.random_state is not None:
             self.random_state = int(self.random_state)
+            if self.random_state < 0:
+                raise ValueError(
+                    _("Parameter '{}' must be x>=0 or None for task {}").format(
+                        self.RANDOM_STATE_PARAM, self.__class__))
         else:
             self.random_state = None
 
+        if 0 > self.min_weight_fraction_leaf \
+            or self.min_weight_fraction_leaf > 0.5:
+            raise ValueError(
+                    _("Parameter '{}' must be x >= 0 and x <= 0.5 for task {}").format(
+                        self.MIN_WEIGHT_FRACTION_LEAF_PARAM, self.__class__))
+
+        if self.min_impurity_decrease < 0:
+            raise ValueError(
+                _("Parameter '{}' must be x>=0 or None for task {}").format(
+                    self.MIN_IMPURITY_DECREASE_PARAM, self.__class__))
+
+        if self.verbose < 0:
+            raise ValueError(
+                _("Parameter '{}' must be x>=0 or None for task {}").format(
+                    self.VERBOSE_PARAM, self.__class__))
+
     def generate_code(self):
         code = dedent("""
-            {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{features}].to_numpy().tolist()
-            y = {input_data}[{label}].to_numpy().tolist()
-            y = np.reshape(y, len(y))
+            {output_data} = {input_data}.copy()
+            X_train = get_X_train_data({input_data}, {features})
+            y = get_label_data({input_data}, {label})
+
             {model} = RandomForestRegressor(n_estimators={n_estimators}, max_features='{max_features}', 
                                             max_depth={max_depth}, min_samples_split={min_samples_split}, 
                                             min_samples_leaf={min_samples_leaf}, random_state={random_state},
@@ -992,8 +1084,10 @@ class SGDRegressorOperation(RegressionOperation):
             self.learning_rate = parameters.get(self.LEARNING_RATE_PARAM, 'invscaling')
             self.shuffle = int(parameters.get(self.SHUFFLE_PARAM, 1))
 
-            vals = [self.alpha, self.max_iter]
-            atts = [self.ALPHA_PARAM, self.MAX_ITER_PARAM]
+            vals = [self.alpha, self.max_iter,
+                    self.n_iter_no_change, self.eta0]
+            atts = [self.ALPHA_PARAM, self.MAX_ITER_PARAM,
+                    self.N_ITER_NO_CHANGE_PARAM, self.ETA0_PARAM]
             for var, att in zip(vals, atts):
                 if var <= 0:
                     raise ValueError(
@@ -1020,8 +1114,12 @@ class SGDRegressorOperation(RegressionOperation):
 
         self.shuffle = True if int(self.shuffle) == 1 else False
 
-        if self.seed is not None and self.seed != '0':
+        if self.seed is not None:
             self.seed = int(self.seed)
+            if self.seed < 0:
+                raise ValueError(
+                    _("Parameter '{}' must be x >= 0 for task {}").format(
+                        self.SEED_PARAM, self.__class__))
         else:
             self.seed = None
 
@@ -1060,12 +1158,12 @@ class SGDRegressorOperation(RegressionOperation):
         functions_required.append(self.l1_ratio)
         self.max_iter = """max_iter={max_iter}""".format(max_iter=self.max_iter)
         functions_required.append(self.max_iter)
-        self.seed = """seed={seed}""".format(seed=self.seed)
+        self.seed = """random_state={seed}""".format(seed=self.seed)
         functions_required.append(self.seed)
 
         if self.loss != 'squared_loss':
             self.epsilon = """epsilon={epsilon}""".format(epsilon=self.epsilon)
-        functions_required.append(self.epsilon)
+            functions_required.append(self.epsilon)
         if self.learning_rate != 'optimal':
             self.eta0 = """eta0={eta0}""".format(eta0=self.eta0)
             functions_required.append(self.eta0)
@@ -1078,10 +1176,10 @@ class SGDRegressorOperation(RegressionOperation):
 
     def generate_code(self):
         code = dedent("""
-            {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{columns}].to_numpy().tolist()
-            y = {input_data}[{label}].to_numpy().tolist()
-            y = np.reshape(y, len(y))
+            {output_data} = {input_data}.copy()
+            X_train = get_X_train_data({input_data}, {columns})
+            y = get_label_data({input_data}, {label})
+
             {model} = SGDRegressor({add_functions_required})
             {model}.fit(X_train, y)          
             {output_data}['{prediction}'] = {model}.predict(X_train).tolist()
@@ -1165,10 +1263,10 @@ class GeneralizedLinearRegressionOperation(RegressionOperation):
     def generate_code(self):
         """Generate code."""
         code = """
-            {output_data} = {input_data}.copy()            
-            X_train = {input_data}[{columns}].to_numpy().tolist()
-            y = {input_data}[{label}].to_numpy().tolist()
-            y = np.reshape(y, len(y))
+            {output_data} = {input_data}.copy()
+            X_train = get_X_train_data({input_data}, {columns})
+            y = get_label_data({input_data}, {label})
+
             if {fit_intercept} == 1:
                 {model} = linear_model.LinearRegression(fit_intercept={fit_intercept}, normalize={normalize}, 
                                                         copy_X={copy_X}, n_jobs={n_jobs})

@@ -54,10 +54,12 @@ def get_X_train_data(df, features):
     tmp1 = df[columns].to_numpy()
     if(len(column_list) > 0):
         tmp2 = df[column_list].sum(axis=1).to_numpy().tolist()
-        output = np.concatenate((tmp1, tmp2), axis=1).tolist()
+        output = np.concatenate((tmp1, tmp2), axis=1)
+    elif len(features) == 1:
+        output = tmp1.flatten()
     else:
-        output = tmp1.tolist()
-    return output
+        output = tmp1
+    return output.tolist()
 
 def get_label_data(df, labels):
     #Validating multiple columns on label

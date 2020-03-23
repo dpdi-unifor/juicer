@@ -76,6 +76,7 @@ class ScikitLearnTranspiler(Transpiler):
             'read-shapefile': geo.ReadShapefileOperation,
             'stdbscan': geo.STDBSCANOperation,
             'within': geo.GeoWithinOperation,
+            'cartographic-projection': geo.CartographicProjectionOperation,
         }
 
         ml_ops = {

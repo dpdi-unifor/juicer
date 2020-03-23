@@ -799,7 +799,7 @@ class ScatterPlotModel(ChartVisualization):
 
     # noinspection PyArgumentEqualDefault
     def get_data(self):
-        schema = self.data.schema
+        schema = self.data.schema   #dtypes columns
 
         result = {}
         attrs = {}

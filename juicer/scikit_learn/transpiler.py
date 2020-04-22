@@ -84,9 +84,9 @@ class ScikitLearnTranspiler(Transpiler):
 
         ml_ops = {
             # ------ Associative ------#
-            'association-rules': associative.AssociationRulesOperation,
-            'frequent-item-set': associative.FrequentItemSetOperation,
-            'sequence-mining': associative.SequenceMiningOperation,
+            'association-rules-model': associative.AssociationRulesOperation,
+            'frequent-item-set-model': associative.FrequentItemSetOperation,
+            'sequence-mining-model': associative.SequenceMiningOperation,
 
             # ------ Feature Extraction Operations  ------#
             'feature-assembler': feature_extraction.FeatureAssemblerOperation,

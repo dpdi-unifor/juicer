@@ -313,13 +313,18 @@ class QuantileDiscretizerOperation(Operation):
             if self.parameters['multiplicity']['input data'] > 1 else ""
 
         code = """
+        from juicer.scikit_learn.util import get_X_train_data
         {output} = {input}{copy_code}
         from sklearn.preprocessing import KBinsDiscretizer
         {model} = KBinsDiscretizer(n_bins={n_quantiles}, 
             encode='ordinal', strategy='{strategy}')
         X_train = get_X_train_data({input}, {att})
         
-        {output}['{alias}'] = {model}.fit_transform(X_train).flatten().tolist()
+        # intended method ?
+        {output}['{alias}'] = {model}.fit_transform(X_train).tolist()
+        
+        # oper = {model}.fit_transform(X_train).flatten().tolist()
+        # {output} = pd.concat([{output}, pd.Series(data=oper, name='{alias}')], axis=1)
         """.format(copy_code=copy_code, output=self.output,
                    model=self.model,
                    input=self.named_inputs['input data'],
